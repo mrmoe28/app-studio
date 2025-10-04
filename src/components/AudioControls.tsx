@@ -1,11 +1,13 @@
 'use client'
 
+import { useState, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
-import { Volume2, Music } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Volume2, Music, Play, Pause, Upload, Loader2 } from 'lucide-react'
 import { AVAILABLE_VOICES } from '@/lib/text-to-speech'
 
 export interface AudioSettings {
@@ -16,6 +18,8 @@ export interface AudioSettings {
   enableMusic: boolean
   selectedMusic: string
   musicVolume: number
+  customMusicUrl?: string
+  customMusicName?: string
 }
 
 interface AudioControlsProps {
@@ -23,13 +27,21 @@ interface AudioControlsProps {
   onSettingsChange: (settings: Partial<AudioSettings>) => void
 }
 
-const MUSIC_TRACKS = [
-  { id: 'upbeat-1', name: 'Upbeat Corporate', url: '/music/upbeat-corporate.mp3' },
-  { id: 'calm-1', name: 'Calm Ambient', url: '/music/calm-ambient.mp3' },
-  { id: 'energetic-1', name: 'Energetic Pop', url: '/music/energetic-pop.mp3' }
+export const MUSIC_TRACKS = [
+  { id: 'upbeat-1', name: 'Upbeat Corporate', url: 'https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3' },
+  { id: 'calm-1', name: 'Calm Ambient', url: 'https://cdn.pixabay.com/audio/2022/03/10/audio_5c2e788c03.mp3' },
+  { id: 'energetic-1', name: 'Energetic Pop', url: 'https://cdn.pixabay.com/audio/2022/08/02/audio_2dde668d05.mp3' }
 ]
 
 export function AudioControls({ settings, onSettingsChange }: AudioControlsProps) {
+  const [isPreviewingVoice, setIsPreviewingVoice] = useState(false)
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+  const [isPreviewingMusic, setIsPreviewingMusic] = useState(false)
+  const [isUploadingMusic, setIsUploadingMusic] = useState(false)
+
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
+  const musicAudioRef = useRef<HTMLAudioElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleVoiceoverToggle = () => {
     onSettingsChange({ enableVoiceover: !settings.enableVoiceover })
@@ -45,6 +57,135 @@ export function AudioControls({ settings, onSettingsChange }: AudioControlsProps
 
   const handleMusicVolumeChange = (value: number[]) => {
     onSettingsChange({ musicVolume: value[0] })
+  }
+
+  const previewVoice = async () => {
+    if (isPreviewingVoice) {
+      // Stop current preview
+      if (voiceAudioRef.current) {
+        voiceAudioRef.current.pause()
+        voiceAudioRef.current = null
+      }
+      setIsPreviewingVoice(false)
+      return
+    }
+
+    setIsGeneratingPreview(true)
+    try {
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: 'Hello! This is a preview of how this voice will sound in your video.',
+          voiceId: settings.selectedVoice
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.audioUrl) {
+        const audio = new Audio(data.audioUrl)
+        audio.volume = settings.voiceoverVolume / 100
+
+        audio.onended = () => {
+          setIsPreviewingVoice(false)
+          voiceAudioRef.current = null
+        }
+
+        audio.onerror = () => {
+          setIsPreviewingVoice(false)
+          voiceAudioRef.current = null
+        }
+
+        voiceAudioRef.current = audio
+        await audio.play()
+        setIsPreviewingVoice(true)
+      }
+    } catch (error) {
+      console.error('Error previewing voice:', error)
+    } finally {
+      setIsGeneratingPreview(false)
+    }
+  }
+
+  const previewMusic = () => {
+    if (isPreviewingMusic) {
+      // Stop current preview
+      if (musicAudioRef.current) {
+        musicAudioRef.current.pause()
+        musicAudioRef.current = null
+      }
+      setIsPreviewingMusic(false)
+      return
+    }
+
+    const musicUrl = settings.selectedMusic === 'custom' && settings.customMusicUrl
+      ? settings.customMusicUrl
+      : MUSIC_TRACKS.find(t => t.id === settings.selectedMusic)?.url
+
+    if (!musicUrl) return
+
+    const audio = new Audio(musicUrl)
+    audio.volume = settings.musicVolume / 100
+
+    audio.onended = () => {
+      setIsPreviewingMusic(false)
+      musicAudioRef.current = null
+    }
+
+    audio.onerror = () => {
+      setIsPreviewingMusic(false)
+      musicAudioRef.current = null
+    }
+
+    musicAudioRef.current = audio
+    audio.play()
+    setIsPreviewingMusic(true)
+  }
+
+  const handleMusicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('audio/')) {
+      alert('Please upload an audio file')
+      return
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB')
+      return
+    }
+
+    setIsUploadingMusic(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/upload-music', {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.url) {
+        onSettingsChange({
+          selectedMusic: 'custom',
+          customMusicUrl: data.url,
+          customMusicName: file.name
+        })
+      } else {
+        alert('Failed to upload music file')
+      }
+    } catch (error) {
+      console.error('Error uploading music:', error)
+      alert('Failed to upload music file')
+    } finally {
+      setIsUploadingMusic(false)
+    }
   }
 
   return (
@@ -95,7 +236,32 @@ export function AudioControls({ settings, onSettingsChange }: AudioControlsProps
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="voice-select">Voice</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="voice-select">Voice</Label>
+                  <Button
+                    onClick={previewVoice}
+                    variant="outline"
+                    size="sm"
+                    disabled={isGeneratingPreview}
+                  >
+                    {isGeneratingPreview ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                        Generating...
+                      </>
+                    ) : isPreviewingVoice ? (
+                      <>
+                        <Pause className="w-4 h-4 mr-1" />
+                        Stop Preview
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 mr-1" />
+                        Preview Voice
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <Select
                   value={settings.selectedVoice}
                   onValueChange={(value) => onSettingsChange({ selectedVoice: value })}
@@ -156,7 +322,54 @@ export function AudioControls({ settings, onSettingsChange }: AudioControlsProps
           {settings.enableMusic && (
             <div className="space-y-4 pl-6">
               <div className="space-y-2">
-                <Label htmlFor="music-select">Music Track</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="music-select">Music Track</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={previewMusic}
+                      variant="outline"
+                      size="sm"
+                      disabled={!settings.selectedMusic}
+                    >
+                      {isPreviewingMusic ? (
+                        <>
+                          <Pause className="w-4 h-4 mr-1" />
+                          Stop
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 mr-1" />
+                          Preview
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      variant="outline"
+                      size="sm"
+                      disabled={isUploadingMusic}
+                    >
+                      {isUploadingMusic ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-1" />
+                          Upload
+                        </>
+                      )}
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*"
+                      onChange={handleMusicUpload}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
                 <Select
                   value={settings.selectedMusic}
                   onValueChange={(value) => onSettingsChange({ selectedMusic: value })}
@@ -170,8 +383,18 @@ export function AudioControls({ settings, onSettingsChange }: AudioControlsProps
                         {track.name}
                       </SelectItem>
                     ))}
+                    {settings.customMusicUrl && (
+                      <SelectItem value="custom">
+                        {settings.customMusicName || 'Custom Upload'}
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
+                {settings.selectedMusic === 'custom' && settings.customMusicName && (
+                  <p className="text-xs text-gray-500">
+                    Using custom music: {settings.customMusicName}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

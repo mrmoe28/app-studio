@@ -32,7 +32,9 @@ export default function Home() {
     voiceoverVolume: 80,
     enableMusic: false,
     selectedMusic: 'upbeat-1',
-    musicVolume: 30
+    musicVolume: 30,
+    customMusicUrl: undefined,
+    customMusicName: undefined
   })
 
   const form = useForm<UrlInput>({
@@ -188,7 +190,10 @@ export default function Home() {
           'energetic-1': 'https://cdn.pixabay.com/audio/2022/08/02/audio_2dde668d05.mp3'
         }
 
-        const musicUrl = musicUrls[audioSettings.selectedMusic]
+        // Use custom music URL if selected, otherwise use preset
+        const musicUrl = audioSettings.selectedMusic === 'custom' && audioSettings.customMusicUrl
+          ? audioSettings.customMusicUrl
+          : musicUrls[audioSettings.selectedMusic]
 
         if (musicUrl) {
           tracks.push({
