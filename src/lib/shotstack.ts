@@ -13,12 +13,8 @@ import {
   Output,
 } from 'shotstack-sdk'
 
-const apiKey = process.env.SHOTSTACK_API_KEY
+const apiKey = process.env.SHOTSTACK_API_KEY || ''
 const apiEnv = (process.env.SHOTSTACK_API_ENV || 'sandbox') as 'sandbox' | 'v1'
-
-if (!apiKey) {
-  throw new Error('SHOTSTACK_API_KEY environment variable is not set')
-}
 
 // Initialize Shotstack client
 const defaultClient = ApiClient.instance
@@ -49,6 +45,11 @@ interface VideoTemplate {
  * Create a promotional video using Shotstack
  */
 export async function createPromoVideo(template: VideoTemplate) {
+  // Check for API key at runtime, not at module load time
+  if (!apiKey) {
+    throw new Error('SHOTSTACK_API_KEY environment variable is not set')
+  }
+
   try {
     const clips: Clip[] = []
     const imageDuration = template.duration / template.images.length
@@ -192,6 +193,11 @@ export async function createPromoVideo(template: VideoTemplate) {
  * Check the status of a render
  */
 export async function getRenderStatus(renderId: string) {
+  // Check for API key at runtime
+  if (!apiKey) {
+    throw new Error('SHOTSTACK_API_KEY environment variable is not set')
+  }
+
   try {
     const response = await api.getRender(renderId)
 
