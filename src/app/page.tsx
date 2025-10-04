@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Loader2, Video, Sparkles } from 'lucide-react'
+import { AudioControls, type AudioSettings } from '@/components/AudioControls'
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
@@ -18,6 +19,16 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [renderId, setRenderId] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+
+  const [audioSettings, setAudioSettings] = useState<AudioSettings>({
+    enableVoiceover: false,
+    voiceoverScript: '',
+    selectedVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel
+    voiceoverVolume: 80,
+    enableMusic: false,
+    selectedMusic: 'upbeat-1',
+    musicVolume: 30
+  })
 
   const form = useForm<UrlInput>({
     resolver: zodResolver(urlSchema),
@@ -70,10 +81,67 @@ export default function Home() {
         effect: 'zoomIn'
       }))
 
+      const tracks: Array<{ clips: unknown[] }> = [{ clips }]
+      const videoDuration = clips.length * 3
+
+      // Add voiceover track if enabled
+      if (audioSettings.enableVoiceover && audioSettings.voiceoverScript.trim()) {
+        // Generate voiceover
+        const ttsResponse = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: audioSettings.voiceoverScript,
+            voiceId: audioSettings.selectedVoice
+          })
+        })
+
+        const ttsData = await ttsResponse.json()
+
+        if (ttsData.success && ttsData.audioUrl) {
+          tracks.push({
+            clips: [{
+              asset: {
+                type: 'audio',
+                src: ttsData.audioUrl
+              },
+              start: 0,
+              length: videoDuration,
+              volume: audioSettings.voiceoverVolume / 100
+            }]
+          })
+        }
+      }
+
+      // Add background music track if enabled
+      if (audioSettings.enableMusic && audioSettings.selectedMusic) {
+        const musicUrls: Record<string, string> = {
+          'upbeat-1': 'https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3',
+          'calm-1': 'https://cdn.pixabay.com/audio/2022/03/10/audio_5c2e788c03.mp3',
+          'energetic-1': 'https://cdn.pixabay.com/audio/2022/08/02/audio_2dde668d05.mp3'
+        }
+
+        const musicUrl = musicUrls[audioSettings.selectedMusic]
+
+        if (musicUrl) {
+          tracks.push({
+            clips: [{
+              asset: {
+                type: 'audio',
+                src: musicUrl
+              },
+              start: 0,
+              length: videoDuration,
+              volume: audioSettings.musicVolume / 100
+            }]
+          })
+        }
+      }
+
       const payload = {
         timeline: {
           background: scrapedData.themeColor || '#000000',
-          tracks: [{ clips }]
+          tracks
         },
         output: {
           format: 'mp4',
@@ -254,6 +322,26 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Audio Controls */}
+          {scrapedData && (
+            <div className="mb-8">
+              <AudioControls
+                settings={audioSettings}
+                onSettingsChange={(newSettings) =>
+                  setAudioSettings({ ...audioSettings, ...newSettings })
+                }
+              />
+            </div>
+          )}
+
+          {/* Generate Button */}
+          {scrapedData && (
+            <Card className="mb-8">
+              <CardContent className="pt-6">
                 <Button
                   onClick={generateVideo}
                   disabled={isGenerating}
