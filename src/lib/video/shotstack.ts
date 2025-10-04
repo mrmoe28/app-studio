@@ -3,7 +3,7 @@ export type Shot = { imageUrl: string; caption?: string };
 interface ShotstackClip {
   asset: {
     type: string;
-    src: string;
+    src?: string;
     text?: string;
     style?: string;
     position?: string;
