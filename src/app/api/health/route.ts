@@ -11,7 +11,8 @@ export async function GET() {
       host,
       keyMasked: mask(process.env.SHOTSTACK_API_KEY)
     });
-  } catch (e:any) {
-    return NextResponse.json({ ok:false, error: e.message }, { status: 500 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return NextResponse.json({ ok:false, error: message }, { status: 500 });
   }
 }

@@ -31,6 +31,7 @@ export async function ssFetch(path: string, init: RequestInit & { json?: unknown
 
 export function vErr(e: unknown) {
   const verbose = String(process.env.VERBOSE_ERRORS ?? "").toLowerCase() === "true";
-  const msg = (e as any)?.message ?? "unknown error";
-  return verbose ? { message: msg, stack: (e as any)?.stack } : { message: msg };
+  const msg = e instanceof Error ? e.message : "unknown error";
+  const stack = e instanceof Error ? e.stack : undefined;
+  return verbose ? { message: msg, stack } : { message: msg };
 }
