@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-core'
 import chromium from '@sparticuz/chromium'
+import { put } from '@vercel/blob'
 import type { ScrapedAsset } from '@/types'
 
 /**
@@ -75,21 +76,32 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
       ? keywordsContent.split(',').map((k) => k.trim())
       : []
 
-    // Take screenshots
+    // Take screenshots and upload to Vercel Blob
     const screenshots: string[] = []
+    const timestamp = Date.now()
 
     // Full page screenshot
     const fullScreenshot = await page.screenshot({
       fullPage: false,
       type: 'jpeg',
-      quality: 90,
-      encoding: 'base64',
+      quality: 80, // Reduce quality to save space
+      encoding: 'binary',
     })
-    screenshots.push(`data:image/jpeg;base64,${fullScreenshot}`)
+
+    const blob1 = await put(
+      `screenshots/${timestamp}-full.jpg`,
+      fullScreenshot,
+      {
+        access: 'public',
+        contentType: 'image/jpeg',
+      }
+    )
+    screenshots.push(blob1.url)
 
     // Scroll and capture more sections
     const scrollPositions = [0.33, 0.66]
-    for (const position of scrollPositions) {
+    for (let i = 0; i < scrollPositions.length; i++) {
+      const position = scrollPositions[i]
       await page.evaluate((pos) => {
         window.scrollTo({
           top: document.documentElement.scrollHeight * pos,
@@ -102,10 +114,19 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
       const screenshot = await page.screenshot({
         fullPage: false,
         type: 'jpeg',
-        quality: 90,
-        encoding: 'base64',
+        quality: 80,
+        encoding: 'binary',
       })
-      screenshots.push(`data:image/jpeg;base64,${screenshot}`)
+
+      const blob = await put(
+        `screenshots/${timestamp}-${i + 1}.jpg`,
+        screenshot,
+        {
+          access: 'public',
+          contentType: 'image/jpeg',
+        }
+      )
+      screenshots.push(blob.url)
     }
 
     await browser.close()
