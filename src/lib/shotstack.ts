@@ -1,10 +1,24 @@
-import Shotstack from 'shotstack-sdk'
+import {
+  ApiClient,
+  EditApi,
+  Edit,
+  Timeline,
+  Track,
+  Clip,
+  ImageAsset,
+  TitleAsset,
+  AudioAsset,
+  Offset,
+  Transition,
+  Soundtrack,
+  Output,
+} from 'shotstack-sdk'
 
 const apiKey = process.env.SHOTSTACK_API_KEY!
 const apiEnv = (process.env.SHOTSTACK_API_ENV || 'sandbox') as 'sandbox' | 'v1'
 
 // Initialize Shotstack client
-const defaultClient = Shotstack.ApiClient.instance
+const defaultClient = ApiClient.instance
 const DeveloperKey = defaultClient.authentications['DeveloperKey']
 DeveloperKey.apiKey = apiKey
 
@@ -15,7 +29,7 @@ if (apiEnv === 'v1') {
   defaultClient.basePath = 'https://api.shotstack.io/stage'
 }
 
-const api = new Shotstack.EditApi()
+const api = new EditApi()
 
 interface VideoTemplate {
   title: string
@@ -33,74 +47,74 @@ interface VideoTemplate {
  */
 export async function createPromoVideo(template: VideoTemplate) {
   try {
-    const clips: Shotstack.Clip[] = []
+    const clips: Clip[] = []
     const imageDuration = template.duration / template.images.length
 
     // Create clips for each image with transitions
     template.images.forEach((imageUrl, index) => {
-      const imageAsset = new Shotstack.ImageAsset()
+      const imageAsset = new ImageAsset()
       imageAsset.src = imageUrl
 
-      const clip = new Shotstack.Clip()
+      const clip = new Clip()
       clip.asset = imageAsset
       clip.start = index * imageDuration
       clip.length = imageDuration
-      clip.fit = Shotstack.Clip.FitEnum.Cover
+      clip.fit = Clip.FitEnum.Cover
       clip.scale = 1.1 // Slight zoom for Ken Burns effect
 
       // Add transition
-      clip.transition = new Shotstack.Transition()
-      clip.transition.in = Shotstack.Transition.InEnum.Fade
-      clip.transition.out = Shotstack.Transition.OutEnum.Fade
+      clip.transition = new Transition()
+      clip.transition.in = Transition.InEnum.Fade
+      clip.transition.out = Transition.OutEnum.Fade
 
       clips.push(clip)
     })
 
     // Add title overlay
-    const titleAsset = new Shotstack.TitleAsset()
+    const titleAsset = new TitleAsset()
     titleAsset.text = template.title
-    titleAsset.style = Shotstack.TitleAsset.StyleEnum.Minimal
-    titleAsset.size = Shotstack.TitleAsset.SizeEnum.Large
+    titleAsset.style = TitleAsset.StyleEnum.Minimal
+    titleAsset.size = TitleAsset.SizeEnum.Large
     titleAsset.background = template.themeColor
     titleAsset.color = '#ffffff'
 
-    const titleClip = new Shotstack.Clip()
+    const titleClip = new Clip()
     titleClip.asset = titleAsset
     titleClip.start = 0
     titleClip.length = 3
-    titleClip.position = Shotstack.Clip.PositionEnum.Center
-    titleClip.offset = new Shotstack.Offset()
+    titleClip.position = Clip.PositionEnum.Center
+    titleClip.offset = new Offset()
     titleClip.offset.y = 0.3
 
     clips.push(titleClip)
 
     // Add description overlay
-    const descAsset = new Shotstack.TitleAsset()
+    const descAsset = new TitleAsset()
     descAsset.text = template.description
-    descAsset.style = Shotstack.TitleAsset.StyleEnum.Subtitle
-    descAsset.size = Shotstack.TitleAsset.SizeEnum.Medium
+    descAsset.style = TitleAsset.StyleEnum.Subtitle
+    descAsset.size = TitleAsset.SizeEnum.Medium
     descAsset.color = '#ffffff'
 
-    const descClip = new Shotstack.Clip()
+    const descClip = new Clip()
     descClip.asset = descAsset
     descClip.start = 3
     descClip.length = template.duration - 3
-    descClip.position = Shotstack.Clip.PositionEnum.Bottom
+    descClip.position = Clip.PositionEnum.Bottom
 
     clips.push(descClip)
 
     // Add logo if provided
     if (template.logo) {
-      const logoAsset = new Shotstack.ImageAsset()
+      const logoAsset = new ImageAsset()
       logoAsset.src = template.logo
 
-      const logoClip = new Shotstack.Clip()
+      const logoClip = new Clip()
       logoClip.asset = logoAsset
       logoClip.start = 0
       logoClip.length = template.duration
-      logoClip.position = Shotstack.Clip.PositionEnum.TopRight
+      logoClip.position = Clip.PositionEnum.TopRight
       logoClip.scale = 0.15
-      logoClip.offset = new Shotstack.Offset()
+      logoClip.offset = new Offset()
       logoClip.offset.x = -0.05
       logoClip.offset.y = 0.05
 
@@ -108,37 +122,37 @@ export async function createPromoVideo(template: VideoTemplate) {
     }
 
     // Add background music if provided
-    const soundtracks: Shotstack.Soundtrack[] = []
+    const soundtracks: Soundtrack[] = []
     if (template.musicUrl) {
-      const audioAsset = new Shotstack.AudioAsset()
+      const audioAsset = new AudioAsset()
       audioAsset.src = template.musicUrl
       audioAsset.volume = template.musicVolume || 0.5
 
-      const soundtrack = new Shotstack.Soundtrack()
+      const soundtrack = new Soundtrack()
       soundtrack.src = template.musicUrl
-      soundtrack.effect = Shotstack.Soundtrack.EffectEnum.FadeInFadeOut
+      soundtrack.effect = Soundtrack.EffectEnum.FadeInFadeOut
       soundtrack.volume = template.musicVolume || 0.5
 
       soundtracks.push(soundtrack)
     }
 
     // Create track and timeline
-    const track = new Shotstack.Track()
+    const track = new Track()
     track.clips = clips
 
-    const timeline = new Shotstack.Timeline()
+    const timeline = new Timeline()
     timeline.tracks = [track]
     timeline.soundtrack = soundtracks.length > 0 ? soundtracks[0] : undefined
 
     // Create output
-    const output = new Shotstack.Output()
-    output.format = Shotstack.Output.FormatEnum.Mp4
-    output.resolution = Shotstack.Output.ResolutionEnum.Hd
+    const output = new Output()
+    output.format = Output.FormatEnum.Mp4
+    output.resolution = Output.ResolutionEnum.Hd
     output.fps = 25
-    output.scaleTo = Shotstack.Output.ScaleToEnum._1080
+    output.scaleTo = Output.ScaleToEnum._1080
 
     // Create edit
-    const edit = new Shotstack.Edit()
+    const edit = new Edit()
     edit.timeline = timeline
     edit.output = output
 
