@@ -7,7 +7,6 @@ import {
   Clip,
   ImageAsset,
   TitleAsset,
-  AudioAsset,
   Offset,
   Transition,
   Soundtrack,
@@ -53,108 +52,108 @@ export async function createPromoVideo(template: VideoTemplate) {
     // Create clips for each image with transitions
     template.images.forEach((imageUrl, index) => {
       const imageAsset = new ImageAsset()
-      imageAsset.src = imageUrl
+      imageAsset.setSrc(imageUrl)
+
+      const transition = new Transition()
+      transition.setIn('fade')
+      transition.setOut('fade')
 
       const clip = new Clip()
-      clip.asset = imageAsset
-      clip.start = index * imageDuration
-      clip.length = imageDuration
-      clip.fit = Clip.FitEnum.Cover
-      clip.scale = 1.1 // Slight zoom for Ken Burns effect
-
-      // Add transition
-      clip.transition = new Transition()
-      clip.transition.in = Transition.InEnum.Fade
-      clip.transition.out = Transition.OutEnum.Fade
+      clip.setAsset(imageAsset)
+      clip.setStart(index * imageDuration)
+      clip.setLength(imageDuration)
+      clip.setFit('crop')
+      clip.setScale(1.1) // Slight zoom for Ken Burns effect
+      clip.setTransition(transition)
 
       clips.push(clip)
     })
 
     // Add title overlay
     const titleAsset = new TitleAsset()
-    titleAsset.text = template.title
-    titleAsset.style = TitleAsset.StyleEnum.Minimal
-    titleAsset.size = TitleAsset.SizeEnum.Large
-    titleAsset.background = template.themeColor
-    titleAsset.color = '#ffffff'
+    titleAsset.setText(template.title)
+    titleAsset.setStyle('minimal')
+    titleAsset.setSize('large')
+    titleAsset.setBackground(template.themeColor)
+    titleAsset.setColor('#ffffff')
+
+    const titleOffset = new Offset()
+    titleOffset.setY(0.3)
 
     const titleClip = new Clip()
-    titleClip.asset = titleAsset
-    titleClip.start = 0
-    titleClip.length = 3
-    titleClip.position = Clip.PositionEnum.Center
-    titleClip.offset = new Offset()
-    titleClip.offset.y = 0.3
+    titleClip.setAsset(titleAsset)
+    titleClip.setStart(0)
+    titleClip.setLength(3)
+    titleClip.setPosition('center')
+    titleClip.setOffset(titleOffset)
 
     clips.push(titleClip)
 
     // Add description overlay
     const descAsset = new TitleAsset()
-    descAsset.text = template.description
-    descAsset.style = TitleAsset.StyleEnum.Subtitle
-    descAsset.size = TitleAsset.SizeEnum.Medium
-    descAsset.color = '#ffffff'
+    descAsset.setText(template.description)
+    descAsset.setStyle('subtitle')
+    descAsset.setSize('medium')
+    descAsset.setColor('#ffffff')
 
     const descClip = new Clip()
-    descClip.asset = descAsset
-    descClip.start = 3
-    descClip.length = template.duration - 3
-    descClip.position = Clip.PositionEnum.Bottom
+    descClip.setAsset(descAsset)
+    descClip.setStart(3)
+    descClip.setLength(template.duration - 3)
+    descClip.setPosition('bottom')
 
     clips.push(descClip)
 
     // Add logo if provided
     if (template.logo) {
       const logoAsset = new ImageAsset()
-      logoAsset.src = template.logo
+      logoAsset.setSrc(template.logo)
+
+      const logoOffset = new Offset()
+      logoOffset.setX(-0.05)
+      logoOffset.setY(0.05)
 
       const logoClip = new Clip()
-      logoClip.asset = logoAsset
-      logoClip.start = 0
-      logoClip.length = template.duration
-      logoClip.position = Clip.PositionEnum.TopRight
-      logoClip.scale = 0.15
-      logoClip.offset = new Offset()
-      logoClip.offset.x = -0.05
-      logoClip.offset.y = 0.05
+      logoClip.setAsset(logoAsset)
+      logoClip.setStart(0)
+      logoClip.setLength(template.duration)
+      logoClip.setPosition('topRight')
+      logoClip.setScale(0.15)
+      logoClip.setOffset(logoOffset)
 
       clips.push(logoClip)
     }
 
     // Add background music if provided
-    const soundtracks: Soundtrack[] = []
+    let soundtrack = undefined
     if (template.musicUrl) {
-      const audioAsset = new AudioAsset()
-      audioAsset.src = template.musicUrl
-      audioAsset.volume = template.musicVolume || 0.5
-
-      const soundtrack = new Soundtrack()
-      soundtrack.src = template.musicUrl
-      soundtrack.effect = Soundtrack.EffectEnum.FadeInFadeOut
-      soundtrack.volume = template.musicVolume || 0.5
-
-      soundtracks.push(soundtrack)
+      soundtrack = new Soundtrack()
+      soundtrack.setSrc(template.musicUrl)
+      soundtrack.setEffect('fadeInFadeOut')
+      soundtrack.setVolume(template.musicVolume || 0.5)
     }
 
     // Create track and timeline
     const track = new Track()
-    track.clips = clips
+    track.setClips(clips)
 
     const timeline = new Timeline()
-    timeline.tracks = [track]
-    timeline.soundtrack = soundtracks.length > 0 ? soundtracks[0] : undefined
+    timeline.setTracks([track])
+    if (soundtrack) {
+      timeline.setSoundtrack(soundtrack)
+    }
 
     // Create output
     const output = new Output()
-    output.format = Output.FormatEnum.Mp4
-    output.resolution = Output.ResolutionEnum.Hd
-    output.fps = 25
-    output.scaleTo = Output.ScaleToEnum._1080
+    output.setFormat('mp4')
+    output.setResolution('hd')
+    output.setFps(25)
+    output.setScaleTo('1080')
 
     // Create edit
     const edit = new Edit()
-    edit.timeline = timeline
-    edit.output = output
+    edit.setTimeline(timeline)
+    edit.setOutput(output)
 
     // Submit render
     const response = await api.postRender(edit)
@@ -166,7 +165,10 @@ export async function createPromoVideo(template: VideoTemplate) {
     }
   } catch (error) {
     console.error('Shotstack render error:', error)
-    throw new Error('Failed to create video')
+    if (error instanceof Error) {
+      throw new Error(`Shotstack API error: ${error.message}`)
+    }
+    throw new Error('Failed to create video: Unknown error')
   }
 }
 
