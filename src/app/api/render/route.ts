@@ -1,30 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ssFetch } from "@/lib/shotstack";
+import { NextResponse } from "next/server";
+import { ssFetch, vErr } from "@/lib/shotstack";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const edit = await request.json();
-    const resp = await ssFetch("/render", { method: "POST", json: edit });
+    const payload = await req.json();
+    const upstream = await ssFetch("/render", { method: "POST", json: payload });
+    const text = await upstream.text();
+    let json:any; try { json = JSON.parse(text); } catch { json = { raw:text }; }
 
-    if (!resp.ok) {
-      const errBody = await resp.text();
+    if (!upstream.ok) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: `Shotstack ${resp.status}: ${errBody}`,
-        },
-        { status: resp.status }
+        { ok:false, status: upstream.status, errorFromShotstack: json },
+        { status: 502 }
       );
     }
-
-    const data = await resp.json();
-    return NextResponse.json({ ok: true, data });
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? "Unknown error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok:true, shotstack: json });
+  } catch (e:any) {
+    return NextResponse.json({ ok:false, error: vErr(e) }, { status: 500 });
   }
 }

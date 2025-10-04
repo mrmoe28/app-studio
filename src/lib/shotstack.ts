@@ -1,58 +1,36 @@
 /// <reference types="node" />
+const BAD_CHARS = /[\r\n\t]/;
 
-const REQUIRED_HEADER = "x-api-key";
+export const mask = (v: string | undefined | null) => {
+  if (!v) return "(unset)";
+  const s = v.trim();
+  if (s.length <= 8) return "***";
+  return `${s.slice(0,4)}...${s.slice(-4)}`;
+};
 
-// Reject control chars / whitespace / quotes in header values.
-function hasInvalidHeaderChars(v: string) {
-  // Disallow non-printable, CR/LF, and any quotes/backticks/spaces
-  // (Node HTTP is strict about \r\n and some separators).
-  return /[\r\n\t]/.test(v) || /["'`]/.test(v) || /^\s|\s$/.test(v);
-}
-
-export function getShotstackConfig() {
+export function getCfg() {
   const rawKey = process.env.SHOTSTACK_API_KEY ?? "";
-  const apiKey = rawKey.trim();
-  const host =
-    (process.env.SHOTSTACK_HOST ?? "https://api.shotstack.io/stage").replace(/\/+$/, "");
-
-  if (!apiKey) {
-    throw new Error("SHOTSTACK_API_KEY is not set");
-  }
-  if (hasInvalidHeaderChars(apiKey)) {
-    throw new Error(
-      `SHOTSTACK_API_KEY contains invalid characters for ${REQUIRED_HEADER} header`
-    );
-  }
-  if (apiKey.length < 16) {
-    // sanity check; real keys are longer
-    throw new Error("SHOTSTACK_API_KEY appears too short");
-  }
-
-  return { apiKey, host };
+  const key = rawKey.trim();
+  const host = (process.env.SHOTSTACK_HOST ?? "https://api.shotstack.io/stage").replace(/\/+$/,"");
+  if (!key) throw new Error("SHOTSTACK_API_KEY is not set");
+  if (BAD_CHARS.test(key) || /["'`]/.test(key)) throw new Error("SHOTSTACK_API_KEY has invalid characters");
+  return { key, host };
 }
 
-export async function ssFetch(
-  path: string,
-  init: RequestInit & { json?: unknown } = {}
-): Promise<Response> {
-  const { apiKey, host } = getShotstackConfig();
-
+export async function ssFetch(path: string, init: RequestInit & { json?: unknown } = {}) {
+  const { key, host } = getCfg();
   const headers = new Headers(init.headers ?? {});
   headers.set("Content-Type", "application/json");
   headers.set("Accept", "application/json");
-  headers.set("x-api-key", apiKey);
+  headers.set("x-api-key", key);
 
   const url = `${host}${path.startsWith("/") ? path : `/${path}`}`;
   const body = init.json !== undefined ? JSON.stringify(init.json) : (init.body as BodyInit | null);
-
   return fetch(url, { ...init, headers, body, cache: "no-store" });
 }
 
-export async function maskKeyForLog() {
-  try {
-    const { apiKey } = getShotstackConfig();
-    return apiKey.length <= 8 ? "***" : `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`;
-  } catch {
-    return "(unset)";
-  }
+export function vErr(e: unknown) {
+  const verbose = String(process.env.VERBOSE_ERRORS ?? "").toLowerCase() === "true";
+  const msg = (e as any)?.message ?? "unknown error";
+  return verbose ? { message: msg, stack: (e as any)?.stack } : { message: msg };
 }

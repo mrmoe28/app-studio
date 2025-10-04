@@ -1,33 +1,32 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ssFetch } from "@/lib/shotstack";
+import { NextResponse } from "next/server";
+import { ssFetch, vErr } from "@/lib/shotstack";
 
 export const runtime = "nodejs";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const { id } = params;
-    const resp = await ssFetch(`/render/${id}`);
+type Params = { params: { id: string } };
 
-    if (!resp.ok) {
-      const errBody = await resp.text();
+export async function GET(_req: Request, { params }: Params) {
+  try {
+    const id = decodeURIComponent(params.id ?? "");
+    if (!id || id.length < 8) {
+      return NextResponse.json({ ok:false, error:"invalid id" }, { status: 400 });
+    }
+
+    const upstream = await ssFetch(`/render/${id}`, { method: "GET" });
+    const text = await upstream.text();
+    let json:any; try { json = JSON.parse(text); } catch { json = { raw:text }; }
+
+    if (!upstream.ok) {
+      // Bubble the real reason so the UI can stop polling and show it.
       return NextResponse.json(
-        {
-          ok: false,
-          error: `Shotstack ${resp.status}: ${errBody}`,
-        },
-        { status: resp.status }
+        { ok:false, status: upstream.status, errorFromShotstack: json },
+        { status: upstream.status === 404 ? 404 : 502 }
       );
     }
 
-    const data = await resp.json();
-    return NextResponse.json({ ok: true, data });
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? "Unknown error" },
-      { status: 500 }
-    );
+    // Normalize payload; Shotstack returns status fields like "queued" | "fetching" | "rendering" | "done" | "failed"
+    return NextResponse.json({ ok:true, shotstack: json });
+  } catch (e:any) {
+    return NextResponse.json({ ok:false, error: vErr(e) }, { status: 500 });
   }
 }
