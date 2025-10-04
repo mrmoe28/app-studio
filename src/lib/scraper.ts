@@ -90,7 +90,7 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
 
     const blob1 = await put(
       `screenshots/${timestamp}-full.jpg`,
-      fullScreenshot,
+      Buffer.from(fullScreenshot),
       {
         access: 'public',
         contentType: 'image/jpeg',
@@ -120,7 +120,7 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
 
       const blob = await put(
         `screenshots/${timestamp}-${i + 1}.jpg`,
-        screenshot,
+        Buffer.from(screenshot),
         {
           access: 'public',
           contentType: 'image/jpeg',
