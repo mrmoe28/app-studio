@@ -1,56 +1,64 @@
-import { chromium } from 'playwright'
+import puppeteer from 'puppeteer-core'
+import chromium from '@sparticuz/chromium'
 import type { ScrapedAsset } from '@/types'
 
 /**
  * Scrape app information and screenshots from a URL
  */
 export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
-  const browser = await chromium.launch({
-    headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
+  // Configure chromium for serverless
+  const browser = await puppeteer.launch({
+    args: [...chromium.args, '--hide-scrollbars', '--disable-web-security'],
+    defaultViewport: { width: 1920, height: 1080 },
+    executablePath: await chromium.executablePath(),
+    headless: true,
   })
 
   try {
-    const context = await browser.newContext({
-      viewport: { width: 1920, height: 1080 },
-      userAgent:
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    })
+    const page = await browser.newPage()
 
-    const page = await context.newPage()
+    // Set viewport and user agent
+    await page.setViewport({ width: 1920, height: 1080 })
+    await page.setUserAgent(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    )
 
     // Navigate to the URL
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 })
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 })
 
     // Wait for content to load
-    await page.waitForTimeout(2000)
+    await new Promise(resolve => setTimeout(resolve, 2000))
 
     // Extract metadata
     const title = await page.title()
     const description =
-      (await page
-        .locator('meta[name="description"]')
-        .getAttribute('content')) ||
-      (await page
-        .locator('meta[property="og:description"]')
-        .getAttribute('content')) ||
+      (await page.$eval(
+        'meta[name="description"]',
+        (el) => el.getAttribute('content')
+      ).catch(() => null)) ||
+      (await page.$eval(
+        'meta[property="og:description"]',
+        (el) => el.getAttribute('content')
+      ).catch(() => null)) ||
       'No description available'
 
     // Extract theme color
     const themeColor =
-      (await page
-        .locator('meta[name="theme-color"]')
-        .getAttribute('content')) || '#3B82F6'
+      (await page.$eval(
+        'meta[name="theme-color"]',
+        (el) => el.getAttribute('content')
+      ).catch(() => null)) || '#3B82F6'
 
     // Extract logo/icon
     const logo =
-      (await page
-        .locator('link[rel="icon"]')
-        .first()
-        .getAttribute('href')) ||
-      (await page
-        .locator('link[rel="apple-touch-icon"]')
-        .first()
-        .getAttribute('href')) ||
+      (await page.$eval(
+        'link[rel="icon"]',
+        (el) => el.getAttribute('href')
+      ).catch(() => null)) ||
+      (await page.$eval(
+        'link[rel="apple-touch-icon"]',
+        (el) => el.getAttribute('href')
+      ).catch(() => null)) ||
       undefined
 
     // Make logo URL absolute if it's relative
@@ -59,9 +67,10 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
       : logo
 
     // Extract keywords
-    const keywordsContent = await page
-      .locator('meta[name="keywords"]')
-      .getAttribute('content')
+    const keywordsContent = await page.$eval(
+      'meta[name="keywords"]',
+      (el) => el.getAttribute('content')
+    ).catch(() => null)
     const keywords = keywordsContent
       ? keywordsContent.split(',').map((k) => k.trim())
       : []
@@ -74,8 +83,9 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
       fullPage: false,
       type: 'jpeg',
       quality: 90,
+      encoding: 'base64',
     })
-    screenshots.push(`data:image/jpeg;base64,${fullScreenshot.toString('base64')}`)
+    screenshots.push(`data:image/jpeg;base64,${fullScreenshot}`)
 
     // Scroll and capture more sections
     const scrollPositions = [0.33, 0.66]
@@ -87,14 +97,15 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
         })
       }, position)
 
-      await page.waitForTimeout(1000)
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
       const screenshot = await page.screenshot({
         fullPage: false,
         type: 'jpeg',
         quality: 90,
+        encoding: 'base64',
       })
-      screenshots.push(`data:image/jpeg;base64,${screenshot.toString('base64')}`)
+      screenshots.push(`data:image/jpeg;base64,${screenshot}`)
     }
 
     await browser.close()
@@ -121,9 +132,13 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
  */
 export async function validateUrl(url: string): Promise<boolean> {
   try {
-    const browser = await chromium.launch({ headless: true })
-    const context = await browser.newContext()
-    const page = await context.newPage()
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: { width: 1280, height: 720 },
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    })
+    const page = await browser.newPage()
 
     await page.goto(url, { timeout: 10000, waitUntil: 'domcontentloaded' })
     await browser.close()
