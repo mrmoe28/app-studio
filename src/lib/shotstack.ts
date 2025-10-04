@@ -13,8 +13,12 @@ import {
   Output,
 } from 'shotstack-sdk'
 
-const apiKey = process.env.SHOTSTACK_API_KEY!
+const apiKey = process.env.SHOTSTACK_API_KEY
 const apiEnv = (process.env.SHOTSTACK_API_ENV || 'sandbox') as 'sandbox' | 'v1'
+
+if (!apiKey) {
+  throw new Error('SHOTSTACK_API_KEY environment variable is not set')
+}
 
 // Initialize Shotstack client
 const defaultClient = ApiClient.instance
@@ -165,10 +169,22 @@ export async function createPromoVideo(template: VideoTemplate) {
     }
   } catch (error) {
     console.error('Shotstack render error:', error)
+
+    // Log full error details for debugging
+    if (typeof error === 'object' && error !== null) {
+      console.error('Error details:', JSON.stringify(error, null, 2))
+    }
+
     if (error instanceof Error) {
       throw new Error(`Shotstack API error: ${error.message}`)
     }
-    throw new Error('Failed to create video: Unknown error')
+
+    // Capture more error information
+    const errorMessage = typeof error === 'object' && error !== null
+      ? JSON.stringify(error)
+      : String(error)
+
+    throw new Error(`Failed to create video: ${errorMessage}`)
   }
 }
 

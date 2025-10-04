@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssFormsPlugin from "@tailwindcss/forms";
 
 const config: Config = {
   darkMode: ["class"],
@@ -51,6 +52,6 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("@tailwindcss/forms")],
+  plugins: [tailwindcssFormsPlugin],
 };
 export default config;
