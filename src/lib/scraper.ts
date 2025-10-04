@@ -7,11 +7,21 @@ import type { ScrapedAsset } from '@/types'
  * Scrape app information and screenshots from a URL
  */
 export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
-  // Configure chromium for serverless
+  // Configure chromium for serverless (production) or local
+  const isLocal = process.env.NODE_ENV !== 'production'
+
   const browser = await puppeteer.launch({
-    args: [...chromium.args, '--hide-scrollbars', '--disable-web-security'],
+    args: isLocal
+      ? ['--hide-scrollbars', '--disable-web-security']
+      : [...chromium.args, '--hide-scrollbars', '--disable-web-security'],
     defaultViewport: { width: 1920, height: 1080 },
-    executablePath: await chromium.executablePath(),
+    executablePath: isLocal
+      ? process.platform === 'darwin'
+        ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        : process.platform === 'win32'
+        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+        : '/usr/bin/google-chrome'
+      : await chromium.executablePath(),
     headless: true,
   })
 
@@ -153,10 +163,18 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
  */
 export async function validateUrl(url: string): Promise<boolean> {
   try {
+    const isLocal = process.env.NODE_ENV !== 'production'
+
     const browser = await puppeteer.launch({
-      args: chromium.args,
+      args: isLocal ? [] : chromium.args,
       defaultViewport: { width: 1280, height: 720 },
-      executablePath: await chromium.executablePath(),
+      executablePath: isLocal
+        ? process.platform === 'darwin'
+          ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+          : process.platform === 'win32'
+          ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+          : '/usr/bin/google-chrome'
+        : await chromium.executablePath(),
       headless: true,
     })
     const page = await browser.newPage()
