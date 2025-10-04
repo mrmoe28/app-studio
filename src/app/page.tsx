@@ -61,27 +61,42 @@ export default function Home() {
     setVideoUrl(null)
 
     try {
-      const response = await fetch('/api/generate', {
+      // Build Shotstack timeline payload
+      const clips = scrapedData.screenshots.slice(0, 5).map((img, idx) => ({
+        asset: { type: 'image', src: img },
+        start: idx * 3,
+        length: 3,
+        fit: 'cover',
+        effect: 'zoomIn'
+      }))
+
+      const payload = {
+        timeline: {
+          background: scrapedData.themeColor || '#000000',
+          tracks: [{ clips }]
+        },
+        output: {
+          format: 'mp4',
+          resolution: 'hd',
+          aspectRatio: '16:9'
+        }
+      }
+
+      const response = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: scrapedData.title,
-          description: scrapedData.description,
-          duration: 15,
-          images: scrapedData.screenshots,
-          logo: scrapedData.logo,
-          themeColor: scrapedData.themeColor,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await response.json()
 
-      if (data.success) {
-        setRenderId(data.renderId)
-        // Start polling for status
-        pollRenderStatus(data.renderId)
+      if (data.ok && data.shotstack?.response?.id) {
+        const id = data.shotstack.response.id
+        setRenderId(id)
+        pollRenderStatus(id)
       } else {
-        alert(`Error: ${data.error}`)
+        const errorMsg = data.errorFromShotstack?.message || data.error?.message || 'Unknown error'
+        alert(`Error: ${errorMsg}`)
         setIsGenerating(false)
       }
     } catch (error) {
@@ -101,16 +116,29 @@ export default function Home() {
         const response = await fetch(`/api/status/${id}`)
         const data = await response.json()
 
-        if (data.success) {
-          if (data.status === 'done') {
-            setVideoUrl(data.url)
-            setIsGenerating(false)
-            clearInterval(interval)
-          } else if (data.status === 'failed') {
-            alert(`Video generation failed: ${data.error || 'Unknown error'}`)
+        // Check for errors first
+        if (!data.ok) {
+          const errorMsg = data.errorFromShotstack?.message || data.error?.message || 'Unknown error'
+          alert(`Video generation failed: ${errorMsg}`)
+          setIsGenerating(false)
+          clearInterval(interval)
+          return
+        }
+
+        // Check Shotstack response status
+        const status = data.shotstack?.response?.status
+        if (status === 'done') {
+          const url = data.shotstack?.response?.url
+          if (url) {
+            setVideoUrl(url)
             setIsGenerating(false)
             clearInterval(interval)
           }
+        } else if (status === 'failed') {
+          const errorMsg = data.shotstack?.response?.error || 'Render failed'
+          alert(`Video generation failed: ${errorMsg}`)
+          setIsGenerating(false)
+          clearInterval(interval)
         }
 
         if (attempts >= maxAttempts) {
@@ -120,6 +148,9 @@ export default function Home() {
         }
       } catch (error) {
         console.error('Status polling error:', error)
+        alert(`Polling error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        setIsGenerating(false)
+        clearInterval(interval)
       }
     }, 5000) // Poll every 5 seconds
   }
