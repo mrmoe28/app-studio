@@ -116,12 +116,21 @@ export async function renderWithShotstack(
   };
 
   try {
+    // Validate API key
+    const apiKey = process.env.SHOTSTACK_API_KEY;
+    if (!apiKey) {
+      throw new Error('SHOTSTACK_API_KEY is not configured');
+    }
+
+    // Clean the API key (remove any whitespace/newlines)
+    const cleanApiKey = apiKey.trim();
+
     // Make API request
     const response = await fetch(`${apiUrl}/render`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.SHOTSTACK_API_KEY,
+        'x-api-key': cleanApiKey,
       },
       body: JSON.stringify(edit),
     });
