@@ -187,3 +187,35 @@ export async function validateUrl(url: string): Promise<boolean> {
     return false
   }
 }
+
+/**
+ * Scrape multiple URLs in batches
+ */
+export async function scrapeMultipleUrls(urls: string[]): Promise<ScrapedAsset[]> {
+  const results: ScrapedAsset[] = []
+  const batchSize = 3 // Scrape 3 at a time to avoid memory issues
+
+  for (let i = 0; i < urls.length; i += batchSize) {
+    const batch = urls.slice(i, i + batchSize)
+
+    const batchResults = await Promise.allSettled(
+      batch.map(url => scrapeAppUrl(url))
+    )
+
+    // Filter successful results
+    for (const result of batchResults) {
+      if (result.status === 'fulfilled') {
+        results.push(result.value)
+      } else {
+        console.error('Failed to scrape URL:', result.reason)
+      }
+    }
+
+    // Small delay between batches
+    if (i + batchSize < urls.length) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+  }
+
+  return results
+}

@@ -10,12 +10,17 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Loader2, Video, Sparkles } from 'lucide-react'
+import { Loader2, Video, Sparkles, Plus, Trash2 } from 'lucide-react'
 import { AudioControls, type AudioSettings } from '@/components/AudioControls'
+import { ScreenshotGallery } from '@/components/ScreenshotGallery'
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [scrapedData, setScrapedData] = useState<ScrapedAsset | null>(null)
+  const [multipleScrapedData, setMultipleScrapedData] = useState<ScrapedAsset[]>([])
+  const [selectedScreenshots, setSelectedScreenshots] = useState<string[]>([])
+  const [inputMode, setInputMode] = useState<'single' | 'multiple'>('single')
+  const [multipleUrls, setMultipleUrls] = useState<string[]>([''])
   const [isGenerating, setIsGenerating] = useState(false)
   const [renderId, setRenderId] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
@@ -36,6 +41,60 @@ export default function Home() {
       url: '',
     },
   })
+
+  const addUrlInput = () => {
+    if (multipleUrls.length < 10) {
+      setMultipleUrls([...multipleUrls, ''])
+    }
+  }
+
+  const removeUrlInput = (index: number) => {
+    const newUrls = multipleUrls.filter((_, i) => i !== index)
+    setMultipleUrls(newUrls.length > 0 ? newUrls : [''])
+  }
+
+  const updateUrlInput = (index: number, value: string) => {
+    const newUrls = [...multipleUrls]
+    newUrls[index] = value
+    setMultipleUrls(newUrls)
+  }
+
+  async function scrapeMultiple() {
+    const validUrls = multipleUrls.filter(url => url.trim() !== '')
+    if (validUrls.length === 0) {
+      alert('Please enter at least one URL')
+      return
+    }
+
+    setIsLoading(true)
+    setMultipleScrapedData([])
+    setSelectedScreenshots([])
+    setRenderId(null)
+    setVideoUrl(null)
+
+    try {
+      const response = await fetch('/api/scrape-multiple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: validUrls }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setMultipleScrapedData(data.data)
+        // Auto-select all screenshots
+        const allScreenshots = data.data.flatMap((asset: ScrapedAsset) => asset.screenshots)
+        setSelectedScreenshots(allScreenshots)
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      alert(`Failed to scrape URLs: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   async function onSubmit(values: UrlInput) {
     setIsLoading(true)
@@ -65,7 +124,15 @@ export default function Home() {
   }
 
   async function generateVideo() {
-    if (!scrapedData) return
+    // Get screenshots from either single or multiple mode
+    const screenshots = inputMode === 'single'
+      ? (scrapedData?.screenshots.slice(0, 10) || [])
+      : selectedScreenshots.slice(0, 10)
+
+    if (screenshots.length === 0) {
+      alert('No screenshots available. Please scrape a URL first.')
+      return
+    }
 
     setIsGenerating(true)
     setRenderId(null)
@@ -73,7 +140,7 @@ export default function Home() {
 
     try {
       // Build Shotstack timeline payload
-      const clips = scrapedData.screenshots.slice(0, 5).map((img, idx) => ({
+      const clips = screenshots.map((img, idx) => ({
         asset: { type: 'image', src: img },
         start: idx * 3,
         length: 3,
@@ -138,9 +205,14 @@ export default function Home() {
         }
       }
 
+      // Get theme color from appropriate source
+      const themeColor = inputMode === 'single'
+        ? (scrapedData?.themeColor || '#000000')
+        : (multipleScrapedData[0]?.themeColor || '#000000')
+
       const payload = {
         timeline: {
-          background: scrapedData.themeColor || '#000000',
+          background: themeColor,
           tracks
         },
         output: {
@@ -243,54 +315,135 @@ export default function Home() {
           {/* URL Input Form */}
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Enter Your App URL</CardTitle>
+              <CardTitle>Enter App URL(s)</CardTitle>
               <CardDescription>
-                Paste the URL of your app or website to automatically extract content for your promo video
+                Scrape one or multiple pages to extract content for your promo video
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="url"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>App URL</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://example.com"
-                            {...field}
-                            disabled={isLoading}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Enter the full URL including https://
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" disabled={isLoading} className="w-full">
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Analyzing URL...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Analyze & Extract
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </Form>
+            <CardContent className="space-y-4">
+              {/* Mode Toggle */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={inputMode === 'single' ? 'default' : 'outline'}
+                  onClick={() => setInputMode('single')}
+                  className="flex-1"
+                >
+                  Single URL
+                </Button>
+                <Button
+                  type="button"
+                  variant={inputMode === 'multiple' ? 'default' : 'outline'}
+                  onClick={() => setInputMode('multiple')}
+                  className="flex-1"
+                >
+                  Multiple URLs
+                </Button>
+              </div>
+
+              {/* Single URL Input */}
+              {inputMode === 'single' && (
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>App URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://example.com"
+                              {...field}
+                              disabled={isLoading}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Enter the full URL including https://
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit" disabled={isLoading} className="w-full">
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Analyzing URL...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Analyze & Extract
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </Form>
+              )}
+
+              {/* Multiple URL Inputs */}
+              {inputMode === 'multiple' && (
+                <div className="space-y-4">
+                  {multipleUrls.map((url, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        placeholder={`https://example${index + 1}.com`}
+                        value={url}
+                        onChange={(e) => updateUrlInput(index, e.target.value)}
+                        disabled={isLoading}
+                        className="flex-1"
+                      />
+                      {multipleUrls.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeUrlInput(index)}
+                          disabled={isLoading}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addUrlInput}
+                      disabled={isLoading || multipleUrls.length >= 10}
+                      className="flex-1"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add URL ({multipleUrls.length}/10)
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={scrapeMultiple}
+                      disabled={isLoading}
+                      className="flex-1"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Scraping...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Scrape All
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Scraped Data Preview */}
-          {scrapedData && (
+          {/* Scraped Data Preview - Single Mode */}
+          {scrapedData && inputMode === 'single' && (
             <Card className="mb-8">
               <CardHeader>
                 <CardTitle>Extracted Content</CardTitle>
@@ -326,8 +479,18 @@ export default function Home() {
             </Card>
           )}
 
+          {/* Screenshot Gallery - Multiple Mode */}
+          {multipleScrapedData.length > 0 && inputMode === 'multiple' && (
+            <div className="mb-8">
+              <ScreenshotGallery
+                scrapedData={multipleScrapedData}
+                onSelectionChange={setSelectedScreenshots}
+              />
+            </div>
+          )}
+
           {/* Audio Controls */}
-          {scrapedData && (
+          {(scrapedData || multipleScrapedData.length > 0) && (
             <div className="mb-8">
               <AudioControls
                 settings={audioSettings}
@@ -339,7 +502,7 @@ export default function Home() {
           )}
 
           {/* Generate Button */}
-          {scrapedData && (
+          {(scrapedData || multipleScrapedData.length > 0) && (
             <Card className="mb-8">
               <CardContent className="pt-6">
                 <Button
