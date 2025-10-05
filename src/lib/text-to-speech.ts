@@ -85,9 +85,16 @@ export async function generateVoiceover(
     return blob.url;
   } catch (error) {
     console.error("ElevenLabs TTS error:", error);
-    throw new Error(
-      `Failed to generate voiceover: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+
+    // Check if it's an API key permission error
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (errorMessage.includes("missing_permissions") || errorMessage.includes("401")) {
+      throw new Error(
+        "ElevenLabs API key is missing required permissions. Please create a new API key with full TTS permissions at https://elevenlabs.io/app/settings/api-keys"
+      );
+    }
+
+    throw new Error(`Failed to generate voiceover: ${errorMessage}`);
   }
 }
 
