@@ -14,7 +14,6 @@
   "engines": {
     "node": ">=18.17.0"
   },
-  "packageManager": "pnpm@8.15.3",
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-label": "^2.1.7",
