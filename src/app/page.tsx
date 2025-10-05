@@ -222,10 +222,13 @@ export default function Home() {
         },
         output: {
           format: 'mp4',
-          resolution: 'hd',
-          aspectRatio: '16:9'
+          resolution: 'hd'
+          // Note: aspectRatio is omitted for 16:9 as it's the default
         }
       }
+
+      // Log the payload for debugging
+      console.log('Sending payload to Shotstack:', JSON.stringify(payload, null, 2))
 
       const response = await fetch('/api/render', {
         method: 'POST',
@@ -240,7 +243,28 @@ export default function Home() {
         setRenderId(id)
         pollRenderStatus(id)
       } else {
-        const errorMsg = data.errorFromShotstack?.message || data.error?.message || 'Unknown error'
+        // Enhanced error logging to see full error details
+        console.error('Full error response:', data)
+        
+        // Try to extract the most detailed error message
+        let errorMsg = 'Unknown error'
+        
+        if (data.errorFromShotstack) {
+          // If Shotstack returned an error object, try to extract meaningful info
+          if (typeof data.errorFromShotstack === 'string') {
+            errorMsg = data.errorFromShotstack
+          } else if (data.errorFromShotstack.message) {
+            errorMsg = data.errorFromShotstack.message
+          } else if (data.errorFromShotstack.error) {
+            errorMsg = data.errorFromShotstack.error
+          } else {
+            // If it's an object, stringify it
+            errorMsg = JSON.stringify(data.errorFromShotstack)
+          }
+        } else if (data.error) {
+          errorMsg = typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error)
+        }
+        
         alert(`Error: ${errorMsg}`)
         setIsGenerating(false)
       }
