@@ -7,46 +7,58 @@ export interface VoiceOption {
   description: string;
 }
 
-// Popular ElevenLabs voices
+// Shotstack TTS voices (native built-in voices)
 export const AVAILABLE_VOICES: VoiceOption[] = [
   {
-    id: "21m00Tcm4TlvDq8ikWAM",
-    name: "Rachel",
-    description: "Calm, young female voice"
+    id: "Joanna",
+    name: "Joanna",
+    description: "Clear, professional female voice"
   },
   {
-    id: "AZnzlk1XvdvUeBnXmlld",
-    name: "Domi",
-    description: "Strong, confident female voice"
+    id: "Kendra",
+    name: "Kendra",
+    description: "Neutral, pleasant female voice"
   },
   {
-    id: "EXAVITQu4vr4xnSDxMaL",
-    name: "Bella",
-    description: "Soft, gentle female voice"
+    id: "Kimberly",
+    name: "Kimberly",
+    description: "Warm, friendly female voice"
   },
   {
-    id: "ErXwobaYiN019PkySvjV",
-    name: "Antoni",
-    description: "Well-rounded male voice"
+    id: "Ivy",
+    name: "Ivy",
+    description: "Young, casual female voice"
   },
   {
-    id: "VR6AewLTigWG4xSOukaG",
-    name: "Arnold",
-    description: "Crisp, authoritative male voice"
+    id: "Salli",
+    name: "Salli",
+    description: "Confident, articulate female voice"
   },
   {
-    id: "pNInz6obpgDQGcFmaJgB",
-    name: "Adam",
-    description: "Deep, resonant male voice"
+    id: "Matthew",
+    name: "Matthew",
+    description: "Deep, authoritative male voice"
+  },
+  {
+    id: "Joey",
+    name: "Joey",
+    description: "Young, energetic male voice"
+  },
+  {
+    id: "Justin",
+    name: "Justin",
+    description: "Mature, professional male voice"
   }
 ];
 
 /**
  * Generate voiceover audio from text using ElevenLabs API
+ * NOTE: This function is deprecated and should not be used.
+ * Use Shotstack's built-in text-to-speech instead.
  */
 export async function generateVoiceover(
   text: string,
-  voiceId: string = "21m00Tcm4TlvDq8ikWAM" // Default to Rachel
+  voiceId: string = "Joanna" // Default to Joanna (Shotstack voice)
 ): Promise<string> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
@@ -99,10 +111,9 @@ export async function generateVoiceover(
 }
 
 /**
- * Get available voices from ElevenLabs
+ * Get available voices for Shotstack TTS
  */
 export async function getAvailableVoices(): Promise<VoiceOption[]> {
-  // For now, return predefined voices
-  // In the future, we can fetch from ElevenLabs API
+  // Return Shotstack TTS voices
   return AVAILABLE_VOICES;
 }
