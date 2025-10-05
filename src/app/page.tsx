@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Loader2, Video, Sparkles, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Video, Sparkles, Plus, Trash2, Edit3 } from 'lucide-react'
+import Link from 'next/link'
 import { AudioControls, type AudioSettings } from '@/components/AudioControls'
 import { ScreenshotGallery } from '@/components/ScreenshotGallery'
 import { ScreenshotUpload } from '@/components/ScreenshotUpload'
@@ -631,24 +632,59 @@ export default function Home() {
           {(scrapedData || multipleScrapedData.length > 0 || uploadedScreenshots.length > 0) && (
             <Card className="mb-8">
               <CardContent className="pt-6">
-                <Button
-                  onClick={generateVideo}
-                  disabled={isGenerating}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating Video...
-                    </>
-                  ) : (
-                    <>
-                      <Video className="mr-2 h-4 w-4" />
-                      Generate Promo Video
-                    </>
-                  )}
-                </Button>
+                <div className="space-y-4">
+                  <Button
+                    onClick={generateVideo}
+                    disabled={isGenerating}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating Video...
+                      </>
+                    ) : (
+                      <>
+                        <Video className="mr-2 h-4 w-4" />
+                        Quick Generate
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white dark:bg-gray-800 px-2 text-gray-500">
+                        Or
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
+                  >
+                    <Link
+                      href={`/editor?screenshots=${encodeURIComponent(
+                        JSON.stringify(
+                          inputMode === 'single'
+                            ? scrapedData?.screenshots || []
+                            : inputMode === 'multiple'
+                            ? selectedScreenshots
+                            : uploadedScreenshots
+                        )
+                      )}`}
+                    >
+                      <Edit3 className="mr-2 h-4 w-4" />
+                      Advanced Editor
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
