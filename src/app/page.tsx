@@ -44,6 +44,7 @@ export default function Home() {
     defaultValues: {
       url: '',
       screenshotCount: 3,
+      waitAfterSearch: 3000,
     },
   })
 
