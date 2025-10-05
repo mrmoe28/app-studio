@@ -3,7 +3,9 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { VideoEditor } from '@/components/VideoEditor'
+import { ScreenshotUpload } from '@/components/ScreenshotUpload'
 import { Video, Loader2 } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic'
@@ -24,6 +26,10 @@ function EditorContent() {
       }
     }
   }, [searchParams])
+
+  const handleUploadComplete = (uploadedUrls: string[]) => {
+    setScreenshots(prev => [...prev, ...uploadedUrls])
+  }
 
   const handleExport = async (editData: unknown) => {
     console.log('Exporting video with data:', editData)
@@ -52,11 +58,42 @@ function EditorContent() {
             </p>
           </div>
 
+          {/* Upload Section */}
+          {screenshots.length === 0 && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Get Started</CardTitle>
+                <CardDescription>
+                  Upload screenshots to begin editing your video
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScreenshotUpload onUploadComplete={handleUploadComplete} />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Editor */}
-          <VideoEditor
-            screenshots={screenshots}
-            onExport={handleExport}
-          />
+          {screenshots.length > 0 && (
+            <>
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>Screenshots ({screenshots.length})</CardTitle>
+                  <CardDescription>
+                    Add more screenshots or start editing
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ScreenshotUpload onUploadComplete={handleUploadComplete} />
+                </CardContent>
+              </Card>
+
+              <VideoEditor
+                screenshots={screenshots}
+                onExport={handleExport}
+              />
+            </>
+          )}
         </div>
       </main>
     </div>
