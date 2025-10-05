@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Loader2, Video, Sparkles, Plus, Trash2 } from 'lucide-react'
 import { AudioControls, type AudioSettings } from '@/components/AudioControls'
 import { ScreenshotGallery } from '@/components/ScreenshotGallery'
+import { ScreenshotUpload } from '@/components/ScreenshotUpload'
 import { Slider } from '@/components/ui/slider'
 
 export default function Home() {
@@ -20,7 +21,8 @@ export default function Home() {
   const [scrapedData, setScrapedData] = useState<ScrapedAsset | null>(null)
   const [multipleScrapedData, setMultipleScrapedData] = useState<ScrapedAsset[]>([])
   const [selectedScreenshots, setSelectedScreenshots] = useState<string[]>([])
-  const [inputMode, setInputMode] = useState<'single' | 'multiple'>('single')
+  const [uploadedScreenshots, setUploadedScreenshots] = useState<string[]>([])
+  const [inputMode, setInputMode] = useState<'single' | 'multiple' | 'upload'>('single')
   const [multipleUrls, setMultipleUrls] = useState<string[]>([''])
   const [isGenerating, setIsGenerating] = useState(false)
   const [renderId, setRenderId] = useState<string | null>(null)
@@ -133,13 +135,15 @@ export default function Home() {
   }
 
   async function generateVideo() {
-    // Get screenshots from either single or multiple mode
+    // Get screenshots from single, multiple, or upload mode
     const screenshots = inputMode === 'single'
       ? (scrapedData?.screenshots.slice(0, 10) || [])
-      : selectedScreenshots.slice(0, 10)
+      : inputMode === 'multiple'
+      ? selectedScreenshots.slice(0, 10)
+      : uploadedScreenshots.slice(0, 10)
 
     if (screenshots.length === 0) {
-      alert('No screenshots available. Please scrape a URL first.')
+      alert('No screenshots available. Please scrape a URL or upload screenshots first.')
       return
     }
 
@@ -355,19 +359,18 @@ export default function Home() {
           {/* URL Input Form */}
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Enter App URL(s)</CardTitle>
+              <CardTitle>Get Screenshots</CardTitle>
               <CardDescription>
-                Scrape one or multiple pages to extract content for your promo video
+                Scrape URLs or upload your own screenshots for your promo video
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Mode Toggle */}
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   type="button"
                   variant={inputMode === 'single' ? 'default' : 'outline'}
                   onClick={() => setInputMode('single')}
-                  className="flex-1"
                 >
                   Single URL
                 </Button>
@@ -375,9 +378,15 @@ export default function Home() {
                   type="button"
                   variant={inputMode === 'multiple' ? 'default' : 'outline'}
                   onClick={() => setInputMode('multiple')}
-                  className="flex-1"
                 >
                   Multiple URLs
+                </Button>
+                <Button
+                  type="button"
+                  variant={inputMode === 'upload' ? 'default' : 'outline'}
+                  onClick={() => setInputMode('upload')}
+                >
+                  Upload
                 </Button>
               </div>
 
@@ -521,6 +530,15 @@ export default function Home() {
                   </div>
                 </div>
               )}
+
+              {/* Upload Mode */}
+              {inputMode === 'upload' && (
+                <ScreenshotUpload
+                  onUploadComplete={(screenshots) => {
+                    setUploadedScreenshots(screenshots)
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -571,8 +589,34 @@ export default function Home() {
             </div>
           )}
 
+          {/* Uploaded Screenshots Preview */}
+          {uploadedScreenshots.length > 0 && inputMode === 'upload' && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Uploaded Screenshots ({uploadedScreenshots.length})</CardTitle>
+                <CardDescription>
+                  These screenshots will be used to create your promo video
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  {uploadedScreenshots.map((screenshot, index) => (
+                    <div key={index} className="relative aspect-video">
+                      <Image
+                        src={screenshot}
+                        alt={`Uploaded ${index + 1}`}
+                        fill
+                        className="rounded-lg border shadow-sm object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Audio Controls */}
-          {(scrapedData || multipleScrapedData.length > 0) && (
+          {(scrapedData || multipleScrapedData.length > 0 || uploadedScreenshots.length > 0) && (
             <div className="mb-8">
               <AudioControls
                 settings={audioSettings}
@@ -584,7 +628,7 @@ export default function Home() {
           )}
 
           {/* Generate Button */}
-          {(scrapedData || multipleScrapedData.length > 0) && (
+          {(scrapedData || multipleScrapedData.length > 0 || uploadedScreenshots.length > 0) && (
             <Card className="mb-8">
               <CardContent className="pt-6">
                 <Button
