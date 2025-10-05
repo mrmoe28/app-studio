@@ -239,7 +239,7 @@ export async function validateUrl(url: string): Promise<boolean> {
 /**
  * Scrape multiple URLs in batches
  */
-export async function scrapeMultipleUrls(urls: string[]): Promise<ScrapedAsset[]> {
+export async function scrapeMultipleUrls(urls: string[], screenshotCount = 3): Promise<ScrapedAsset[]> {
   const results: ScrapedAsset[] = []
   const batchSize = 3 // Scrape 3 at a time to avoid memory issues
 
@@ -247,7 +247,7 @@ export async function scrapeMultipleUrls(urls: string[]): Promise<ScrapedAsset[]
     const batch = urls.slice(i, i + batchSize)
 
     const batchResults = await Promise.allSettled(
-      batch.map(url => scrapeAppUrl(url))
+      batch.map(url => scrapeAppUrl({ url, screenshotCount }))
     )
 
     // Filter successful results

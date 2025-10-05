@@ -5,7 +5,8 @@ import { z } from 'zod'
 export const maxDuration = 180 // Allow up to 3 minutes for multiple pages
 
 const scrapeMultipleSchema = z.object({
-  urls: z.array(z.string().url()).min(1).max(10) // Max 10 URLs at once
+  urls: z.array(z.string().url()).min(1).max(10), // Max 10 URLs at once
+  screenshotCount: z.number().min(1).max(10).optional().default(3)
 })
 
 export async function POST(request: NextRequest) {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     const validatedData = scrapeMultipleSchema.parse(body)
 
     // Scrape all URLs
-    const scrapedData = await scrapeMultipleUrls(validatedData.urls)
+    const scrapedData = await scrapeMultipleUrls(validatedData.urls, validatedData.screenshotCount)
 
     return NextResponse.json({
       success: true,

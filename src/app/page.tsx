@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { urlSchema, type UrlInput } from '@/lib/schemas'
+import { scrapeRequestSchema, type ScrapeRequest } from '@/lib/schemas'
 import type { ScrapedAsset } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Loader2, Video, Sparkles, Plus, Trash2 } from 'lucide-react'
 import { AudioControls, type AudioSettings } from '@/components/AudioControls'
 import { ScreenshotGallery } from '@/components/ScreenshotGallery'
+import { Slider } from '@/components/ui/slider'
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
@@ -24,6 +25,7 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [renderId, setRenderId] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [screenshotCount, setScreenshotCount] = useState(3)
 
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
     enableVoiceover: false,
@@ -37,10 +39,11 @@ export default function Home() {
     customMusicName: undefined
   })
 
-  const form = useForm<UrlInput>({
-    resolver: zodResolver(urlSchema),
+  const form = useForm<ScrapeRequest>({
+    resolver: zodResolver(scrapeRequestSchema),
     defaultValues: {
       url: '',
+      screenshotCount: 3,
     },
   })
 
@@ -78,7 +81,10 @@ export default function Home() {
       const response = await fetch('/api/scrape-multiple', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: validUrls }),
+        body: JSON.stringify({
+          urls: validUrls,
+          screenshotCount
+        }),
       })
 
       const data = await response.json()
@@ -98,7 +104,7 @@ export default function Home() {
     }
   }
 
-  async function onSubmit(values: UrlInput) {
+  async function onSubmit(values: ScrapeRequest) {
     setIsLoading(true)
     setScrapedData(null)
     setRenderId(null)
@@ -398,6 +404,29 @@ export default function Home() {
                         </FormItem>
                       )}
                     />
+                    <FormField
+                      control={form.control}
+                      name="screenshotCount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Screenshots ({field.value})</FormLabel>
+                          <FormControl>
+                            <Slider
+                              min={1}
+                              max={10}
+                              step={1}
+                              value={[field.value ?? 3]}
+                              onValueChange={(value) => field.onChange(value[0])}
+                              disabled={isLoading}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Number of screenshots to capture (1-10)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <Button type="submit" disabled={isLoading} className="w-full">
                       {isLoading ? (
                         <>
@@ -440,6 +469,25 @@ export default function Home() {
                       )}
                     </div>
                   ))}
+
+                  {/* Screenshot Count Slider */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Screenshots per URL ({screenshotCount})
+                    </label>
+                    <Slider
+                      min={1}
+                      max={10}
+                      step={1}
+                      value={[screenshotCount]}
+                      onValueChange={(value) => setScreenshotCount(value[0])}
+                      disabled={isLoading}
+                    />
+                    <p className="text-sm text-gray-500">
+                      Number of screenshots to capture from each URL (1-10)
+                    </p>
+                  </div>
+
                   <div className="flex gap-2">
                     <Button
                       type="button"
