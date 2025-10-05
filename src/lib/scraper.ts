@@ -1,12 +1,29 @@
 import puppeteer from 'puppeteer-core'
 import chromium from '@sparticuz/chromium'
 import { put } from '@vercel/blob'
-import type { ScrapedAsset } from '@/types'
+import type { ScrapedAsset, ScrapeOptions } from '@/types'
 
 /**
  * Scrape app information and screenshots from a URL
+ * @param options - Scraping configuration options
  */
-export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
+export async function scrapeAppUrl(options: ScrapeOptions | string): Promise<ScrapedAsset> {
+  // Support legacy string parameter for backward compatibility
+  const config: ScrapeOptions = typeof options === 'string'
+    ? { url: options }
+    : options
+
+  const {
+    url,
+    screenshotCount = 3,
+    searchQuery,
+    searchSelector,
+    submitSelector,
+    waitAfterSearch = 3000
+  } = config
+
+  // Validate screenshot count
+  const validScreenshotCount = Math.min(Math.max(1, screenshotCount), 10)
   // Configure chromium for serverless (production) or local
   const isLocal = process.env.NODE_ENV !== 'production'
 
@@ -39,6 +56,37 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
 
     // Wait for content to load
     await new Promise(resolve => setTimeout(resolve, 2000))
+
+    // Handle search query if provided
+    if (searchQuery && searchSelector) {
+      console.log(`[Scraper] Searching for: "${searchQuery}" using selector: ${searchSelector}`)
+
+      try {
+        // Wait for search input to be available
+        await page.waitForSelector(searchSelector, { timeout: 5000 })
+
+        // Type into the search field
+        await page.type(searchSelector, searchQuery)
+
+        console.log('[Scraper] Typed search query')
+
+        // Submit the search - either click button or press Enter
+        if (submitSelector) {
+          await page.click(submitSelector)
+          console.log('[Scraper] Clicked submit button')
+        } else {
+          await page.keyboard.press('Enter')
+          console.log('[Scraper] Pressed Enter')
+        }
+
+        // Wait for search results to load
+        await new Promise(resolve => setTimeout(resolve, waitAfterSearch))
+        console.log('[Scraper] Waited for search results')
+      } catch (error) {
+        console.error('[Scraper] Search interaction failed:', error)
+        // Continue with scraping even if search fails
+      }
+    }
 
     // Extract metadata
     const title = await page.title()
@@ -90,28 +138,25 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
     const screenshots: string[] = []
     const timestamp = Date.now()
 
-    // Full page screenshot
-    const fullScreenshot = await page.screenshot({
-      fullPage: false,
-      type: 'jpeg',
-      quality: 80, // Reduce quality to save space
-      encoding: 'binary',
-    })
+    console.log(`[Scraper] Capturing ${validScreenshotCount} screenshots`)
 
-    const blob1 = await put(
-      `screenshots/${timestamp}-full.jpg`,
-      Buffer.from(fullScreenshot),
-      {
-        access: 'public',
-        contentType: 'image/jpeg',
+    // Calculate scroll positions dynamically based on screenshot count
+    // First screenshot is always at the top (position 0)
+    const scrollPositions: number[] = []
+    if (validScreenshotCount === 1) {
+      scrollPositions.push(0)
+    } else {
+      // Evenly distribute screenshots across the page
+      for (let i = 0; i < validScreenshotCount; i++) {
+        scrollPositions.push(i / (validScreenshotCount - 1))
       }
-    )
-    screenshots.push(blob1.url)
+    }
 
-    // Scroll and capture more sections
-    const scrollPositions = [0.33, 0.66]
+    // Capture screenshots at each position
     for (let i = 0; i < scrollPositions.length; i++) {
       const position = scrollPositions[i]
+
+      // Scroll to position
       await page.evaluate((pos) => {
         window.scrollTo({
           top: document.documentElement.scrollHeight * pos,
@@ -119,6 +164,7 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
         })
       }, position)
 
+      // Wait for scroll to complete and content to load
       await new Promise(resolve => setTimeout(resolve, 1000))
 
       const screenshot = await page.screenshot({
@@ -129,7 +175,7 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
       })
 
       const blob = await put(
-        `screenshots/${timestamp}-${i + 1}.jpg`,
+        `screenshots/${timestamp}-${i}.jpg`,
         Buffer.from(screenshot),
         {
           access: 'public',
@@ -137,6 +183,8 @@ export async function scrapeAppUrl(url: string): Promise<ScrapedAsset> {
         }
       )
       screenshots.push(blob.url)
+
+      console.log(`[Scraper] Captured screenshot ${i + 1}/${validScreenshotCount} at scroll position ${Math.round(position * 100)}%`)
     }
 
     await browser.close()

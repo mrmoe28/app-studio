@@ -12,8 +12,8 @@ export async function POST(request: NextRequest) {
     // Validate request body
     const validatedData = scrapeRequestSchema.parse(body)
 
-    // Scrape the URL
-    const scrapedData = await scrapeAppUrl(validatedData.url)
+    // Scrape the URL with options
+    const scrapedData = await scrapeAppUrl(validatedData)
 
     return NextResponse.json({
       success: true,

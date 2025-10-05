@@ -17,6 +17,11 @@ export const videoCustomizationSchema = z.object({
 // Scraping request schema
 export const scrapeRequestSchema = z.object({
   url: z.string().url({ message: 'Please enter a valid app URL' }),
+  screenshotCount: z.number().min(1).max(10).optional().default(3),
+  searchQuery: z.string().optional(),
+  searchSelector: z.string().optional(),
+  submitSelector: z.string().optional(),
+  waitAfterSearch: z.number().min(0).max(10000).optional().default(3000),
 })
 
 // Video generation request schema

@@ -1,5 +1,14 @@
 // Type definitions for PromoForge
 
+export interface ScrapeOptions {
+  url: string
+  screenshotCount?: number // Number of screenshots to capture (default: 3, max: 10)
+  searchQuery?: string // Optional text to type into a search field
+  searchSelector?: string // CSS selector for the search input field
+  submitSelector?: string // CSS selector for submit button (optional)
+  waitAfterSearch?: number // Milliseconds to wait after search submission (default: 3000)
+}
+
 export interface ScrapedAsset {
   url: string
   title: string
