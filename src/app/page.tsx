@@ -28,7 +28,7 @@ export default function Home() {
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
     enableVoiceover: false,
     voiceoverScript: '',
-    selectedVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel
+    selectedVoice: 'Joanna', // Shotstack TTS voice (female, en-US)
     voiceoverVolume: 80,
     enableMusic: false,
     selectedMusic: 'upbeat-1',
@@ -161,49 +161,24 @@ export default function Home() {
 
       // Add voiceover track if enabled
       if (audioSettings.enableVoiceover && audioSettings.voiceoverScript.trim()) {
-        console.log('Generating voiceover...')
+        console.log('Adding voiceover using Shotstack TTS...')
+        console.log('Voiceover text:', audioSettings.voiceoverScript)
+        console.log('Selected voice:', audioSettings.selectedVoice)
         
-        // Generate voiceover
-        const ttsResponse = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: audioSettings.voiceoverScript,
-            voiceId: audioSettings.selectedVoice
-          })
+        // Use Shotstack's built-in text-to-speech (no external API needed!)
+        tracks.push({
+          clips: [{
+            asset: {
+              type: 'text-to-speech',
+              text: audioSettings.voiceoverScript,
+              voice: audioSettings.selectedVoice,
+              language: 'en-US'
+            },
+            start: 0,
+            length: videoDuration,
+            volume: audioSettings.voiceoverVolume / 100
+          }]
         })
-
-        const ttsData = await ttsResponse.json()
-        console.log('TTS Response:', ttsData)
-
-        // Check if TTS failed
-        if (!ttsResponse.ok || !ttsData.success) {
-          const errorMsg = ttsData.error || 'Failed to generate voiceover'
-          console.error('TTS generation failed:', errorMsg)
-          alert(`Voiceover generation failed: ${errorMsg}\n\nPlease try without voiceover or check your ElevenLabs API key.`)
-          setIsGenerating(false)
-          return
-        }
-
-        if (ttsData.audioUrl) {
-          console.log('Voiceover URL:', ttsData.audioUrl)
-          tracks.push({
-            clips: [{
-              asset: {
-                type: 'audio',
-                src: ttsData.audioUrl
-              },
-              start: 0,
-              length: videoDuration,
-              volume: audioSettings.voiceoverVolume / 100
-            }]
-          })
-        } else {
-          console.error('No audio URL in TTS response')
-          alert('Voiceover generation failed: No audio URL returned')
-          setIsGenerating(false)
-          return
-        }
       }
 
       // Add background music track if enabled
