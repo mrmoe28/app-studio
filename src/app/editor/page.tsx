@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { VideoEditor } from '@/components/VideoEditor'
-import { Video } from 'lucide-react'
+import { Video, Loader2 } from 'lucide-react'
 
-export default function EditorPage() {
+// Force dynamic rendering for this page
+export const dynamic = 'force-dynamic'
+
+function EditorContent() {
   const searchParams = useSearchParams()
   const [screenshots, setScreenshots] = useState<string[]>([])
 
@@ -57,5 +60,19 @@ export default function EditorPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+        </div>
+      }
+    >
+      <EditorContent />
+    </Suspense>
   )
 }

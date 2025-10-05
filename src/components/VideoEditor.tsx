@@ -18,6 +18,7 @@ export function VideoEditor({ screenshots = [], onExport }: VideoEditorProps) {
   const canvasRef = useRef<Canvas | null>(null)
   const timelineRef = useRef<Timeline | null>(null)
   const controlsRef = useRef<Controls | null>(null)
+  const templateRef = useRef<unknown>(null)
 
   useEffect(() => {
     let mounted = true
@@ -29,6 +30,7 @@ export function VideoEditor({ screenshots = [], onExport }: VideoEditorProps) {
           'https://shotstack-assets.s3.amazonaws.com/templates/hello-world/hello.json'
         )
         const template = await response.json()
+        templateRef.current = template
 
         if (!mounted) return
 
@@ -42,13 +44,14 @@ export function VideoEditor({ screenshots = [], onExport }: VideoEditorProps) {
         await canvas.load()
         canvasRef.current = canvas
 
-        // Load template into editor
-        await edit.loadEdit(template)
-
-        // If screenshots provided, replace template images
+        // If screenshots provided, replace template images before loading
+        let finalTemplate = template
         if (screenshots.length > 0) {
-          await replaceTemplateImages(edit, screenshots)
+          finalTemplate = replaceImagesInTemplate(template, screenshots)
         }
+
+        // Load template into editor
+        await edit.loadEdit(finalTemplate)
 
         // Initialize timeline
         const timeline = new Timeline(edit, { width: 1280, height: 300 })
@@ -75,29 +78,24 @@ export function VideoEditor({ screenshots = [], onExport }: VideoEditorProps) {
     }
   }, [screenshots])
 
-  async function replaceTemplateImages(edit: Edit, images: string[]) {
-    try {
-      // Get all clips from the timeline
-      const tracks = edit.timeline?.tracks || []
+  function replaceImagesInTemplate(template: Record<string, unknown>, images: string[]): Record<string, unknown> {
+    // Deep clone the template
+    const newTemplate = JSON.parse(JSON.stringify(template))
 
-      let imageIndex = 0
-      for (const track of tracks) {
-        for (const clip of track.clips || []) {
-          // Replace image assets
-          if (clip.asset?.type === 'image' && imageIndex < images.length) {
-            clip.asset.src = images[imageIndex]
-            imageIndex++
-          }
+    const tracks = (newTemplate.timeline as { tracks?: unknown[] })?.tracks || []
+    let imageIndex = 0
+
+    for (const track of tracks as Array<{ clips?: Array<{ asset?: { type?: string; src?: string } }> }>) {
+      for (const clip of track.clips || []) {
+        // Replace image assets
+        if (clip.asset?.type === 'image' && imageIndex < images.length) {
+          clip.asset.src = images[imageIndex]
+          imageIndex++
         }
       }
-
-      // Refresh the canvas
-      if (canvasRef.current) {
-        await canvasRef.current.load()
-      }
-    } catch (error) {
-      console.error('Failed to replace images:', error)
     }
+
+    return newTemplate
   }
 
   const handlePlay = () => {
