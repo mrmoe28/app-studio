@@ -141,6 +141,9 @@ export default function Home() {
     setVideoUrl(null)
 
     try {
+      console.log('Starting video generation...')
+      console.log('Screenshots to use:', screenshots)
+      
       // Build Shotstack timeline payload
       const clips = screenshots.map((img, idx) => ({
         asset: { type: 'image', src: img },
@@ -152,9 +155,14 @@ export default function Home() {
 
       const tracks: Array<{ clips: unknown[] }> = [{ clips }]
       const videoDuration = clips.length * 3
+      
+      console.log('Video duration:', videoDuration, 'seconds')
+      console.log('Number of image clips:', clips.length)
 
       // Add voiceover track if enabled
       if (audioSettings.enableVoiceover && audioSettings.voiceoverScript.trim()) {
+        console.log('Generating voiceover...')
+        
         // Generate voiceover
         const ttsResponse = await fetch('/api/tts', {
           method: 'POST',
@@ -166,8 +174,19 @@ export default function Home() {
         })
 
         const ttsData = await ttsResponse.json()
+        console.log('TTS Response:', ttsData)
 
-        if (ttsData.success && ttsData.audioUrl) {
+        // Check if TTS failed
+        if (!ttsResponse.ok || !ttsData.success) {
+          const errorMsg = ttsData.error || 'Failed to generate voiceover'
+          console.error('TTS generation failed:', errorMsg)
+          alert(`Voiceover generation failed: ${errorMsg}\n\nPlease try without voiceover or check your ElevenLabs API key.`)
+          setIsGenerating(false)
+          return
+        }
+
+        if (ttsData.audioUrl) {
+          console.log('Voiceover URL:', ttsData.audioUrl)
           tracks.push({
             clips: [{
               asset: {
@@ -179,11 +198,18 @@ export default function Home() {
               volume: audioSettings.voiceoverVolume / 100
             }]
           })
+        } else {
+          console.error('No audio URL in TTS response')
+          alert('Voiceover generation failed: No audio URL returned')
+          setIsGenerating(false)
+          return
         }
       }
 
       // Add background music track if enabled
       if (audioSettings.enableMusic && audioSettings.selectedMusic) {
+        console.log('Adding background music...')
+        
         const musicUrls: Record<string, string> = {
           'upbeat-1': 'https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3',
           'calm-1': 'https://cdn.pixabay.com/audio/2022/03/10/audio_5c2e788c03.mp3',
@@ -196,6 +222,7 @@ export default function Home() {
           : musicUrls[audioSettings.selectedMusic]
 
         if (musicUrl) {
+          console.log('Music URL:', musicUrl)
           tracks.push({
             clips: [{
               asset: {
@@ -207,6 +234,8 @@ export default function Home() {
               volume: audioSettings.musicVolume / 100
             }]
           })
+        } else {
+          console.warn('No valid music URL found')
         }
       }
 
