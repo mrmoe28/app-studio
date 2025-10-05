@@ -28,7 +28,7 @@ export default function Home() {
   const [audioSettings, setAudioSettings] = useState<AudioSettings>({
     enableVoiceover: false,
     voiceoverScript: '',
-    selectedVoice: '21m00Tcm4TlvDq8ikWAM', // Rachel
+    selectedVoice: 'Joanna', // Shotstack TTS voice (female, en-US)
     voiceoverVolume: 80,
     enableMusic: false,
     selectedMusic: 'upbeat-1',
@@ -141,6 +141,9 @@ export default function Home() {
     setVideoUrl(null)
 
     try {
+      console.log('Starting video generation...')
+      console.log('Screenshots to use:', screenshots)
+      
       // Build Shotstack timeline payload
       const clips = screenshots.map((img, idx) => ({
         asset: { type: 'image', src: img },
@@ -152,38 +155,36 @@ export default function Home() {
 
       const tracks: Array<{ clips: unknown[] }> = [{ clips }]
       const videoDuration = clips.length * 3
+      
+      console.log('Video duration:', videoDuration, 'seconds')
+      console.log('Number of image clips:', clips.length)
 
       // Add voiceover track if enabled
       if (audioSettings.enableVoiceover && audioSettings.voiceoverScript.trim()) {
-        // Generate voiceover
-        const ttsResponse = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: audioSettings.voiceoverScript,
-            voiceId: audioSettings.selectedVoice
-          })
+        console.log('Adding voiceover using Shotstack TTS...')
+        console.log('Voiceover text:', audioSettings.voiceoverScript)
+        console.log('Selected voice:', audioSettings.selectedVoice)
+        
+        // Use Shotstack's built-in text-to-speech (no external API needed!)
+        tracks.push({
+          clips: [{
+            asset: {
+              type: 'text-to-speech',
+              text: audioSettings.voiceoverScript,
+              voice: audioSettings.selectedVoice,
+              language: 'en-US'
+            },
+            start: 0,
+            length: videoDuration,
+            volume: audioSettings.voiceoverVolume / 100
+          }]
         })
-
-        const ttsData = await ttsResponse.json()
-
-        if (ttsData.success && ttsData.audioUrl) {
-          tracks.push({
-            clips: [{
-              asset: {
-                type: 'audio',
-                src: ttsData.audioUrl
-              },
-              start: 0,
-              length: videoDuration,
-              volume: audioSettings.voiceoverVolume / 100
-            }]
-          })
-        }
       }
 
       // Add background music track if enabled
       if (audioSettings.enableMusic && audioSettings.selectedMusic) {
+        console.log('Adding background music...')
+        
         const musicUrls: Record<string, string> = {
           'upbeat-1': 'https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3',
           'calm-1': 'https://cdn.pixabay.com/audio/2022/03/10/audio_5c2e788c03.mp3',
@@ -196,6 +197,7 @@ export default function Home() {
           : musicUrls[audioSettings.selectedMusic]
 
         if (musicUrl) {
+          console.log('Music URL:', musicUrl)
           tracks.push({
             clips: [{
               asset: {
@@ -207,6 +209,8 @@ export default function Home() {
               volume: audioSettings.musicVolume / 100
             }]
           })
+        } else {
+          console.warn('No valid music URL found')
         }
       }
 
@@ -222,10 +226,13 @@ export default function Home() {
         },
         output: {
           format: 'mp4',
-          resolution: 'hd',
-          aspectRatio: '16:9'
+          resolution: 'hd'
+          // Note: aspectRatio is omitted for 16:9 as it's the default
         }
       }
+
+      // Log the payload for debugging
+      console.log('Sending payload to Shotstack:', JSON.stringify(payload, null, 2))
 
       const response = await fetch('/api/render', {
         method: 'POST',
@@ -240,7 +247,28 @@ export default function Home() {
         setRenderId(id)
         pollRenderStatus(id)
       } else {
-        const errorMsg = data.errorFromShotstack?.message || data.error?.message || 'Unknown error'
+        // Enhanced error logging to see full error details
+        console.error('Full error response:', data)
+        
+        // Try to extract the most detailed error message
+        let errorMsg = 'Unknown error'
+        
+        if (data.errorFromShotstack) {
+          // If Shotstack returned an error object, try to extract meaningful info
+          if (typeof data.errorFromShotstack === 'string') {
+            errorMsg = data.errorFromShotstack
+          } else if (data.errorFromShotstack.message) {
+            errorMsg = data.errorFromShotstack.message
+          } else if (data.errorFromShotstack.error) {
+            errorMsg = data.errorFromShotstack.error
+          } else {
+            // If it's an object, stringify it
+            errorMsg = JSON.stringify(data.errorFromShotstack)
+          }
+        } else if (data.error) {
+          errorMsg = typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error)
+        }
+        
         alert(`Error: ${errorMsg}`)
         setIsGenerating(false)
       }

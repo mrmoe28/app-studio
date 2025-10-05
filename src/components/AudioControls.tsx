@@ -83,6 +83,12 @@ export function AudioControls({ settings, onSettingsChange }: AudioControlsProps
 
       const data = await response.json()
 
+      if (!response.ok) {
+        console.error('TTS API error:', data)
+        alert('Failed to generate voice preview: ' + (data.error || 'Unknown error'))
+        return
+      }
+
       if (data.success && data.audioUrl) {
         const audio = new Audio(data.audioUrl)
         audio.volume = settings.voiceoverVolume / 100
@@ -92,17 +98,23 @@ export function AudioControls({ settings, onSettingsChange }: AudioControlsProps
           voiceAudioRef.current = null
         }
 
-        audio.onerror = () => {
+        audio.onerror = (e) => {
+          console.error('Audio playback error:', e)
           setIsPreviewingVoice(false)
           voiceAudioRef.current = null
+          alert('Failed to play voice preview')
         }
 
         voiceAudioRef.current = audio
         await audio.play()
         setIsPreviewingVoice(true)
+      } else {
+        console.error('Invalid TTS response:', data)
+        alert('Failed to generate voice preview')
       }
     } catch (error) {
       console.error('Error previewing voice:', error)
+      alert('Failed to preview voice: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setIsGeneratingPreview(false)
     }
