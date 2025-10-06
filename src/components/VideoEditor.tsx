@@ -28,6 +28,14 @@ type ShotstackPlayer = {
   draw?: () => void
 }
 
+type ShotstackCommandContext = {
+  getTrack(trackIndex: number): ShotstackPlayer[] | null
+  updateDuration(): void
+  setUpdatedClip?(clip: ShotstackPlayer): void
+  restoreClipConfiguration(clip: ShotstackPlayer, previousConfig: Record<string, unknown>): void
+  emitEvent(name: string, data: unknown): void
+}
+
 function cloneDeep<T>(value: T): T {
   if (typeof structuredClone === 'function') {
     return structuredClone(value)
@@ -47,7 +55,10 @@ const createClipUpdateCommand = (
 
   return {
     name,
-    execute(context: any) {
+    execute(context?: ShotstackCommandContext) {
+      if (!context) {
+        throw new Error('Shotstack: missing command context')
+      }
       const track = context.getTrack(trackIndex) as ShotstackPlayer[] | null
       if (!track) {
         throw new Error(`Shotstack: invalid track index ${trackIndex}`)
@@ -72,16 +83,17 @@ const createClipUpdateCommand = (
       const updatedConfig = cloneDeep(playerRef.clipConfiguration)
       context.updateDuration()
 
-      if (typeof context.setUpdatedClip === 'function') {
-        context.setUpdatedClip(playerRef)
-      }
+      context.setUpdatedClip?.(playerRef)
 
       context.emitEvent('clip:updated', {
         previous: { clip: previousConfig, trackIndex, clipIndex },
         current: { clip: updatedConfig, trackIndex, clipIndex },
       })
     },
-    undo(context: any) {
+    undo(context?: ShotstackCommandContext) {
+      if (!context) {
+        return
+      }
       if (!playerRef || !previousConfig) {
         return
       }
@@ -89,9 +101,7 @@ const createClipUpdateCommand = (
       const currentSnapshot = cloneDeep(playerRef.clipConfiguration)
       context.restoreClipConfiguration(playerRef, previousConfig)
 
-      if (typeof context.setUpdatedClip === 'function') {
-        context.setUpdatedClip(playerRef)
-      }
+      context.setUpdatedClip?.(playerRef)
 
       const restoredConfig = cloneDeep(playerRef.clipConfiguration)
       context.updateDuration()
