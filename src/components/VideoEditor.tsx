@@ -20,6 +20,89 @@ interface VideoEditorProps {
   onRegisterAddTTSClip?: (fn: (clipData: TTSClipData) => void) => void
 }
 
+type ShotstackCommand = Parameters<Edit['executeEditCommand']>[0]
+
+type ShotstackPlayer = {
+  clipConfiguration: Record<string, unknown>
+  reconfigureAfterRestore?: () => void
+  draw?: () => void
+}
+
+function cloneDeep<T>(value: T): T {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value)
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+const createClipUpdateCommand = (
+  trackIndex: number,
+  clipIndex: number,
+  mutate: (clipConfiguration: Record<string, unknown>) => void,
+  name: string
+): ShotstackCommand => {
+  let previousConfig: Record<string, unknown> | null = null
+  let playerRef: ShotstackPlayer | null = null
+
+  return {
+    name,
+    execute(context: any) {
+      const track = context.getTrack(trackIndex) as ShotstackPlayer[] | null
+      if (!track) {
+        throw new Error(`Shotstack: invalid track index ${trackIndex}`)
+      }
+
+      playerRef = track[clipIndex] || null
+      if (!playerRef) {
+        throw new Error(`Shotstack: invalid clip index ${clipIndex}`)
+      }
+
+      previousConfig = cloneDeep(playerRef.clipConfiguration)
+      mutate(playerRef.clipConfiguration)
+
+      if (typeof playerRef.reconfigureAfterRestore === 'function') {
+        playerRef.reconfigureAfterRestore()
+      }
+
+      if (typeof playerRef.draw === 'function') {
+        playerRef.draw()
+      }
+
+      const updatedConfig = cloneDeep(playerRef.clipConfiguration)
+      context.updateDuration()
+
+      if (typeof context.setUpdatedClip === 'function') {
+        context.setUpdatedClip(playerRef)
+      }
+
+      context.emitEvent('clip:updated', {
+        previous: { clip: previousConfig, trackIndex, clipIndex },
+        current: { clip: updatedConfig, trackIndex, clipIndex },
+      })
+    },
+    undo(context: any) {
+      if (!playerRef || !previousConfig) {
+        return
+      }
+
+      const currentSnapshot = cloneDeep(playerRef.clipConfiguration)
+      context.restoreClipConfiguration(playerRef, previousConfig)
+
+      if (typeof context.setUpdatedClip === 'function') {
+        context.setUpdatedClip(playerRef)
+      }
+
+      const restoredConfig = cloneDeep(playerRef.clipConfiguration)
+      context.updateDuration()
+      context.emitEvent('clip:updated', {
+        previous: { clip: currentSnapshot, trackIndex, clipIndex },
+        current: { clip: restoredConfig, trackIndex, clipIndex },
+      })
+    },
+  }
+}
+
 export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }: VideoEditorProps) {
 
   const [isLoading, setIsLoading] = useState(true)
@@ -312,6 +395,10 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
       const editData = editRef.current.getEdit()
 
+      if (onExport) {
+        onExport(editData)
+      }
+
       // Submit render job
       const response = await fetch('/api/render-video', {
         method: 'POST',
@@ -500,21 +587,18 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
         return
       }
 
-      const splitPoint = (clip.start || 0) + ((clip.length || 3) / 2)
-      const firstHalfLength = (clip.length || 3) / 2
-      const secondHalfLength = (clip.length || 3) / 2
+      const clipLength = clip.length || 3
+      if (clipLength <= 0.2) {
+        toast.error('Clip too short to split')
+        return
+      }
 
-      // Update first clip length
-      editRef.current.updateClip(selectedClip.trackIndex, selectedClip.clipIndex, {
-        length: firstHalfLength,
-      })
+      const firstHalfLength = clipLength / 2
+      const splitPoint = (clip.start || 0) + firstHalfLength
 
-      // Add second half as new clip
-      editRef.current.addClip(selectedClip.trackIndex, {
-        asset: clip.asset,
-        start: splitPoint,
-        length: secondHalfLength,
-      })
+      editRef.current.splitClip(selectedClip.trackIndex, selectedClip.clipIndex, splitPoint)
+      editRef.current.selectClip(selectedClip.trackIndex, selectedClip.clipIndex)
+      setClipDuration([Number(firstHalfLength.toFixed(2))])
 
       toast.success('Clip split at midpoint')
     } catch (error) {
@@ -535,9 +619,24 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
         return
       }
 
-      editRef.current.updateClip(selectedClip.trackIndex, selectedClip.clipIndex, {
-        length: newLength,
-      })
+      const clip = editRef.current.getClip(selectedClip.trackIndex, selectedClip.clipIndex)
+      if (!clip) {
+        toast.error('Could not find clip data')
+        return
+      }
+
+      const command = createClipUpdateCommand(
+        selectedClip.trackIndex,
+        selectedClip.clipIndex,
+        (clipConfiguration) => {
+          const mutableClip = clipConfiguration as { length?: number }
+          mutableClip.length = newLength
+        },
+        'custom:resizeClip'
+      )
+
+      editRef.current.executeEditCommand(command)
+      setClipDuration([newLength])
 
       toast.success(`Clip duration set to ${newLength}s`)
     } catch (error) {
@@ -553,21 +652,39 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
     }
 
     try {
-      const tracks = editRef.current.getEdit().timeline?.tracks || []
-      const track = tracks[selectedClip.trackIndex] as { clips?: unknown[] } | undefined
-      const clip = (track?.clips || [])[selectedClip.clipIndex] as { asset?: { type?: string } } | undefined
-
-      if (!clip?.asset?.type) {
-        toast.error('Could not determine clip type')
+      const clip = editRef.current.getClip(selectedClip.trackIndex, selectedClip.clipIndex)
+      if (!clip) {
+        toast.error('Could not find clip data')
         return
       }
 
-      editRef.current.updateClip(selectedClip.trackIndex, selectedClip.clipIndex, {
-        asset: {
-          type: clip.asset.type,
-          src: newAssetSrc,
+      if (!clip.asset || typeof clip.asset !== 'object') {
+        toast.error('Clip asset not found')
+        return
+      }
+
+      const command = createClipUpdateCommand(
+        selectedClip.trackIndex,
+        selectedClip.clipIndex,
+        (clipConfiguration) => {
+          const mutableClip = clipConfiguration as {
+            asset?: Record<string, unknown>
+          }
+
+          const asset = mutableClip.asset as (Record<string, unknown> & { type?: string }) | undefined
+          if (!asset?.type) {
+            throw new Error('Could not determine clip type')
+          }
+
+          mutableClip.asset = {
+            ...asset,
+            src: newAssetSrc,
+          }
         },
-      })
+        'custom:replaceClip'
+      )
+
+      editRef.current.executeEditCommand(command)
 
       toast.success('Clip replaced')
     } catch (error) {
