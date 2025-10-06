@@ -5,7 +5,7 @@ const SHOTSTACK_API_ENV = process.env.SHOTSTACK_API_ENV || 'v1'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     if (!SHOTSTACK_API_KEY) {
@@ -15,7 +15,7 @@ export async function GET(
       )
     }
 
-    const renderId = params.id
+    const { id: renderId } = await params
 
     if (!renderId) {
       return NextResponse.json(

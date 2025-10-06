@@ -256,3 +256,4 @@ export default function Interactive() {
 - **Fix before proceeding**: Address all errors immediately
 - **Document everything**: Keep CONTEXT.md updated
 - **Use the stack**: ShadCN + SuperDesign + Next.js 15 + React 19
+- do not run local build. push changes to github and monitor vercel deployment for errors.

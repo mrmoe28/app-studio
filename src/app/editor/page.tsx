@@ -20,7 +20,7 @@ interface TTSClipData {
 function EditorContent() {
   const searchParams = useSearchParams()
   const [screenshots, setScreenshots] = useState<string[]>([])
-  const [addTTSClipFn, setAddTTSClipFn] = useState<((clipData: TTSClipData) => void) | null>(null)
+  const [addTTSClipFn, setAddTTSClipFn] = useState<((clipData: TTSClipData) => void) | undefined>(undefined)
 
   useEffect(() => {
     // Get screenshots from URL params (if passed from main page)
