@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import Image from 'next/image'
 import { Edit, Canvas, Controls, Timeline, VideoExporter } from '@shotstack/shotstack-studio'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,11 +13,10 @@ interface VideoEditorProps {
   screenshots?: string[]
   audioUrls?: string[]
   onExport?: (editData: unknown) => void
+  onAddAudioToTimeline?: (audioUrl: string) => void
 }
 
-export function VideoEditor({ screenshots = [], audioUrls = [], onExport }: VideoEditorProps) {
-  // TODO: Use audioUrls to add audio clips to timeline automatically
-  console.log('Audio URLs available:', audioUrls)
+export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddAudioToTimeline }: VideoEditorProps) {
 
   const [isLoading, setIsLoading] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -33,6 +32,72 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport }: Vide
   const controlsRef = useRef<Controls | null>(null)
   const exporterRef = useRef<VideoExporter | null>(null)
   const templateRef = useRef<unknown>(null)
+
+  // Function to add audio to timeline
+  const addAudioToTimeline = useCallback((audioUrl: string) => {
+    if (!editRef.current) {
+      toast.error('Editor not ready')
+      return
+    }
+
+    try {
+      // Check if we have an audio track (track 1 typically)
+      const tracks = editRef.current.getEdit().timeline?.tracks || []
+
+      // If no audio track exists, create one
+      if (tracks.length < 2) {
+        editRef.current.addTrack(1, { clips: [] })
+      }
+
+      // Add audio clip to track 1 (audio track)
+      // Calculate start position based on existing clips
+      const audioTrack = tracks[1] || { clips: [] }
+      const existingClips = (audioTrack as { clips?: unknown[] }).clips || []
+
+      // Start after the last clip, or at 0 if no clips
+      let startPosition = 0
+      if (existingClips.length > 0) {
+        const lastClip = existingClips[existingClips.length - 1] as { start?: number; length?: number }
+        startPosition = (lastClip.start || 0) + (lastClip.length || 3)
+      }
+
+      editRef.current.addClip(1, {
+        asset: {
+          type: 'audio',
+          src: audioUrl,
+        },
+        start: startPosition,
+        length: 'auto', // Auto-detect audio duration
+      })
+
+      toast.success('Audio added to timeline')
+
+      // Notify parent if callback provided
+      if (onAddAudioToTimeline) {
+        onAddAudioToTimeline(audioUrl)
+      }
+    } catch (error) {
+      console.error('Failed to add audio to timeline:', error)
+      toast.error('Failed to add audio to timeline')
+    }
+  }, [onAddAudioToTimeline])
+
+  // Automatically add new audio URLs to timeline
+  useEffect(() => {
+    if (audioUrls.length > 0 && editRef.current) {
+      // Get the last audio URL (most recently added)
+      const latestAudio = audioUrls[audioUrls.length - 1]
+
+      // Check if this audio is already in the timeline
+      const tracks = editRef.current.getEdit().timeline?.tracks || []
+      const audioTrack = tracks[1] as { clips?: Array<{ asset?: { src?: string } }> } | undefined
+      const existingAudioUrls = audioTrack?.clips?.map(clip => clip.asset?.src) || []
+
+      if (!existingAudioUrls.includes(latestAudio)) {
+        addAudioToTimeline(latestAudio)
+      }
+    }
+  }, [audioUrls, addAudioToTimeline])
 
   useEffect(() => {
     let mounted = true
