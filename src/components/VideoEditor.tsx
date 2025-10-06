@@ -26,6 +26,8 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
   const [isPlaying, setIsPlaying] = useState(false)
   const [timelineZoom, setTimelineZoom] = useState([100])
   const [selectedClip, setSelectedClip] = useState<{ trackIndex: number; clipIndex: number } | null>(null)
+  const [clipDuration, setClipDuration] = useState([3])
+  const [showClipControls, setShowClipControls] = useState(false)
   const [isBrowserExporting, setIsBrowserExporting] = useState(false)
   const [isCloudRendering, setIsCloudRendering] = useState(false)
   const [renderProgress, setRenderProgress] = useState<string>('')
@@ -217,6 +219,16 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
         // Set up event listeners
         edit.events.on('clip:selected', (data: { clip: unknown; trackIndex: number; clipIndex: number }) => {
           setSelectedClip({ trackIndex: data.trackIndex, clipIndex: data.clipIndex })
+          setShowClipControls(true)
+
+          // Get clip duration
+          const tracks = edit.getEdit().timeline?.tracks || []
+          const track = tracks[data.trackIndex] as { clips?: unknown[] } | undefined
+          const clip = (track?.clips || [])[data.clipIndex] as { length?: number } | undefined
+          if (clip?.length) {
+            setClipDuration([clip.length])
+          }
+
           console.log(`Clip selected: Track ${data.trackIndex}, Clip ${data.clipIndex}`)
         })
 
@@ -467,6 +479,100 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
       editRef.current.deleteClip(selectedClip.trackIndex, selectedClip.clipIndex)
       setSelectedClip(null)
       toast.success('Clip deleted')
+    } else {
+      toast.error('No clip selected. Click a clip to select it.')
+    }
+  }
+
+  const handleSplitClip = () => {
+    if (!editRef.current || !selectedClip) {
+      toast.error('No clip selected. Click a clip to select it.')
+      return
+    }
+
+    try {
+      const tracks = editRef.current.getEdit().timeline?.tracks || []
+      const track = tracks[selectedClip.trackIndex] as { clips?: unknown[] } | undefined
+      const clip = (track?.clips || [])[selectedClip.clipIndex] as { start?: number; length?: number; asset?: unknown } | undefined
+
+      if (!clip) {
+        toast.error('Could not find clip data')
+        return
+      }
+
+      const splitPoint = (clip.start || 0) + ((clip.length || 3) / 2)
+      const firstHalfLength = (clip.length || 3) / 2
+      const secondHalfLength = (clip.length || 3) / 2
+
+      // Update first clip length
+      editRef.current.updateClip(selectedClip.trackIndex, selectedClip.clipIndex, {
+        length: firstHalfLength,
+      })
+
+      // Add second half as new clip
+      editRef.current.addClip(selectedClip.trackIndex, {
+        asset: clip.asset,
+        start: splitPoint,
+        length: secondHalfLength,
+      })
+
+      toast.success('Clip split at midpoint')
+    } catch (error) {
+      console.error('Failed to split clip:', error)
+      toast.error('Failed to split clip')
+    }
+  }
+
+  const handleResizeClip = (newLength: number) => {
+    if (!editRef.current || !selectedClip) {
+      toast.error('No clip selected')
+      return
+    }
+
+    try {
+      if (newLength <= 0) {
+        toast.error('Duration must be greater than 0')
+        return
+      }
+
+      editRef.current.updateClip(selectedClip.trackIndex, selectedClip.clipIndex, {
+        length: newLength,
+      })
+
+      toast.success(`Clip duration set to ${newLength}s`)
+    } catch (error) {
+      console.error('Failed to resize clip:', error)
+      toast.error('Failed to resize clip')
+    }
+  }
+
+  const handleReplaceClip = (newAssetSrc: string) => {
+    if (!editRef.current || !selectedClip) {
+      toast.error('No clip selected')
+      return
+    }
+
+    try {
+      const tracks = editRef.current.getEdit().timeline?.tracks || []
+      const track = tracks[selectedClip.trackIndex] as { clips?: unknown[] } | undefined
+      const clip = (track?.clips || [])[selectedClip.clipIndex] as { asset?: { type?: string } } | undefined
+
+      if (!clip?.asset?.type) {
+        toast.error('Could not determine clip type')
+        return
+      }
+
+      editRef.current.updateClip(selectedClip.trackIndex, selectedClip.clipIndex, {
+        asset: {
+          type: clip.asset.type,
+          src: newAssetSrc,
+        },
+      })
+
+      toast.success('Clip replaced')
+    } catch (error) {
+      console.error('Failed to replace clip:', error)
+      toast.error('Failed to replace clip')
     }
   }
 
@@ -582,22 +688,22 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
             {/* Edit Tools */}
             <div className="flex items-center gap-1 border-r pr-2">
               <Button
-                onClick={() => toast.info('Split not yet implemented')}
-                disabled={isLoading}
+                onClick={handleSplitClip}
+                disabled={isLoading || !selectedClip}
                 size="sm"
                 variant="ghost"
-                title="Split clip"
+                title="Split clip at midpoint"
               >
                 <Split className="w-4 h-4" />
               </Button>
               <Button
-                onClick={() => toast.info('Trim not yet implemented')}
-                disabled={isLoading}
+                onClick={handleDeleteClip}
+                disabled={isLoading || !selectedClip}
                 size="sm"
                 variant="ghost"
-                title="Trim clip"
+                title="Delete selected clip (Delete key)"
               >
-                <Scissors className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
               </Button>
             </div>
 
@@ -623,7 +729,34 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
               </Button>
             </div>
 
-            {/* Track & Clip Controls */}
+            {/* Clip Duration Control - Only shown when clip is selected */}
+            {showClipControls && selectedClip && (
+              <div className="flex items-center gap-2 border-r pr-2">
+                <span className="text-xs text-gray-600 dark:text-gray-400">Duration:</span>
+                <div className="w-24">
+                  <Slider
+                    value={clipDuration}
+                    onValueChange={setClipDuration}
+                    min={0.5}
+                    max={10}
+                    step={0.5}
+                    disabled={isLoading}
+                  />
+                </div>
+                <span className="text-xs font-mono text-gray-600 dark:text-gray-400">{clipDuration[0]}s</span>
+                <Button
+                  onClick={() => handleResizeClip(clipDuration[0])}
+                  disabled={isLoading}
+                  size="sm"
+                  variant="ghost"
+                  title="Apply duration"
+                >
+                  Apply
+                </Button>
+              </div>
+            )}
+
+            {/* Track Controls */}
             <div className="flex items-center gap-1 border-r pr-2">
               <Button
                 onClick={handleAddTrack}
@@ -633,15 +766,6 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
                 title="Add track"
               >
                 <Plus className="w-4 h-4" />
-              </Button>
-              <Button
-                onClick={handleDeleteClip}
-                disabled={isLoading || !selectedClip}
-                size="sm"
-                variant="ghost"
-                title="Delete selected clip"
-              >
-                <Trash2 className="w-4 h-4" />
               </Button>
             </div>
 
@@ -695,18 +819,26 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
       </Card>
 
       {/* Main Editor Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
-        {/* Screenshots Panel (Click to add) */}
-        <Card className="lg:col-span-1 overflow-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-2">
+        {/* Screenshots Panel */}
+        <Card className="lg:col-span-1 overflow-auto max-h-[800px]">
           <CardHeader className="p-3">
             <CardTitle className="text-sm">Screenshots</CardTitle>
-            <CardDescription className="text-xs">Click to add to timeline</CardDescription>
+            <CardDescription className="text-xs">
+              {selectedClip ? 'Click to replace selected clip' : 'Click to add to timeline'}
+            </CardDescription>
           </CardHeader>
           <CardContent className="p-3 space-y-2">
             {screenshots.map((screenshot, index) => (
               <div
                 key={index}
-                onClick={() => handleAddScreenshotToTimeline(screenshot)}
+                onClick={() => {
+                  if (selectedClip) {
+                    handleReplaceClip(screenshot)
+                  } else {
+                    handleAddScreenshotToTimeline(screenshot)
+                  }
+                }}
                 className="relative group cursor-pointer hover:ring-2 hover:ring-blue-500 rounded-lg transition-all"
               >
                 <Image
@@ -718,8 +850,17 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
                   unoptimized
                 />
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center gap-1">
-                  <Plus className="w-6 h-6 text-white" />
-                  <span className="text-white text-xs font-medium">Click to add to timeline</span>
+                  {selectedClip ? (
+                    <>
+                      <Scissors className="w-6 h-6 text-white" />
+                      <span className="text-white text-xs font-medium">Replace selected clip</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-6 h-6 text-white" />
+                      <span className="text-white text-xs font-medium">Add to timeline</span>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -727,12 +868,12 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
         </Card>
 
         {/* Canvas & Timeline */}
-        <div className="lg:col-span-3 flex flex-col gap-2">
+        <div className="lg:col-span-4 flex flex-col gap-2">
           {/* Video Canvas */}
           <Card>
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               {isLoading && (
-                <div className="flex items-center justify-center" style={{ minHeight: '400px' }}>
+                <div className="flex items-center justify-center" style={{ minHeight: '350px' }}>
                   <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 </div>
               )}
@@ -740,21 +881,21 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
               <div
                 ref={canvasContainerRef}
                 data-shotstack-studio
-                className="w-full bg-black rounded-lg overflow-hidden"
-                style={{ minHeight: '400px', maxHeight: '600px', aspectRatio: '16/9' }}
+                className="w-full bg-black rounded-lg overflow-hidden mx-auto"
+                style={{ height: '350px', maxWidth: '100%', aspectRatio: '16/9' }}
               />
             </CardContent>
           </Card>
 
           {/* Timeline */}
           <Card>
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               {/* Timeline container - Shotstack Timeline.load() will render here */}
               <div
                 ref={timelineContainerRef}
                 data-shotstack-timeline
                 className="w-full bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden"
-                style={{ height: '300px', transform: `scale(${timelineZoom[0] / 100})`, transformOrigin: 'top left' }}
+                style={{ height: '250px', transform: `scale(${timelineZoom[0] / 100})`, transformOrigin: 'top left' }}
               />
             </CardContent>
           </Card>
