@@ -12,10 +12,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic'
 
+interface TTSClipData {
+  text: string
+  voice: string
+}
+
 function EditorContent() {
   const searchParams = useSearchParams()
   const [screenshots, setScreenshots] = useState<string[]>([])
-  const [audioUrls, setAudioUrls] = useState<string[]>([])
+  const [addTTSClipFn, setAddTTSClipFn] = useState<((clipData: TTSClipData) => void) | null>(null)
 
   useEffect(() => {
     // Get screenshots from URL params (if passed from main page)
@@ -34,18 +39,13 @@ function EditorContent() {
     setScreenshots(prev => [...prev, ...uploadedUrls])
   }
 
-  const handleAudioGenerated = (audioUrl: string) => {
-    setAudioUrls(prev => [...prev, audioUrl])
-  }
-
   const handleExport = async (editData: unknown) => {
     console.log('Exporting video with data:', editData)
+    // Export is handled by VideoEditor via cloud rendering
+  }
 
-    // TODO: Send to Shotstack render API
-    // This will be similar to the existing generateVideo function
-    // but using the Shotstack Studio edit data
-
-    alert('Export functionality coming soon! Edit data logged to console.')
+  const handleRegisterAddTTSClip = (fn: (clipData: TTSClipData) => void) => {
+    setAddTTSClipFn(() => fn)
   }
 
   return (
@@ -94,8 +94,8 @@ function EditorContent() {
               <div className="xl:col-span-3 h-full">
                 <VideoEditor
                   screenshots={screenshots}
-                  audioUrls={audioUrls}
                   onExport={handleExport}
+                  onRegisterAddTTSClip={handleRegisterAddTTSClip}
                 />
               </div>
 
@@ -107,7 +107,7 @@ function EditorContent() {
                     <TabsTrigger value="upload" className="flex-1">Upload</TabsTrigger>
                   </TabsList>
                   <TabsContent value="tts" className="mt-2">
-                    <TextToSpeechPanel onAudioGenerated={handleAudioGenerated} />
+                    <TextToSpeechPanel onAddTTSClip={addTTSClipFn} />
                   </TabsContent>
                   <TabsContent value="upload" className="mt-2">
                     <Card>

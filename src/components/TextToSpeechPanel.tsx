@@ -6,11 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { Loader2, Volume2, Download } from 'lucide-react'
+import { Volume2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+interface TTSClipData {
+  text: string
+  voice: string
+}
+
 interface TextToSpeechPanelProps {
-  onAudioGenerated?: (audioUrl: string) => void
+  onAddTTSClip?: (clipData: TTSClipData) => void
 }
 
 // Common voices from Shotstack TTS
@@ -42,57 +47,24 @@ const VOICES = [
   { id: 'Carla', name: 'Carla (Female, Italian)', language: 'it-IT' },
 ]
 
-export function TextToSpeechPanel({ onAudioGenerated }: TextToSpeechPanelProps) {
+export function TextToSpeechPanel({ onAddTTSClip }: TextToSpeechPanelProps) {
   const [text, setText] = useState('')
   const [voice, setVoice] = useState('Joanna')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [audioUrl, setAudioUrl] = useState<string | null>(null)
 
-  const handleGenerate = async () => {
+  const handleAddToTimeline = () => {
     if (!text.trim()) {
       toast.error('Please enter text to convert to speech')
       return
     }
 
-    try {
-      setIsGenerating(true)
-      toast.info('Generating speech...')
-
-      const response = await fetch('/api/generate-tts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: text.trim(),
-          voice,
-        }),
+    if (onAddTTSClip) {
+      onAddTTSClip({
+        text: text.trim(),
+        voice,
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate speech')
-      }
-
-      setAudioUrl(data.audioUrl)
-      toast.success('Speech generated successfully!')
-
-      // Notify parent component
-      if (onAudioGenerated) {
-        onAudioGenerated(data.audioUrl)
-      }
-    } catch (error) {
-      console.error('TTS generation failed:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to generate speech')
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  const handleDownload = () => {
-    if (audioUrl) {
-      window.open(audioUrl, '_blank')
+      toast.success('TTS clip added to timeline!')
+      // Clear text after adding
+      setText('')
     }
   }
 
@@ -142,45 +114,18 @@ export function TextToSpeechPanel({ onAudioGenerated }: TextToSpeechPanelProps) 
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2">
-          <Button
-            onClick={handleGenerate}
-            disabled={isGenerating || !text.trim()}
-            className="flex-1"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Volume2 className="w-4 h-4 mr-2" />
-                Generate Speech
-              </>
-            )}
-          </Button>
-          {audioUrl && (
-            <Button
-              onClick={handleDownload}
-              variant="outline"
-              title="Download audio file"
-            >
-              <Download className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
+        <Button
+          onClick={handleAddToTimeline}
+          disabled={!text.trim()}
+          className="w-full"
+        >
+          <Volume2 className="w-4 h-4 mr-2" />
+          Add to Timeline
+        </Button>
 
-        {/* Audio Preview */}
-        {audioUrl && (
-          <div className="space-y-2">
-            <Label>Preview</Label>
-            <audio controls className="w-full">
-              <source src={audioUrl} type="audio/mpeg" />
-              Your browser does not support the audio element.
-            </audio>
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground">
+          TTS will be generated during video rendering. No preview available.
+        </p>
       </CardContent>
     </Card>
   )

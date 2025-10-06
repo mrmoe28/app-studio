@@ -9,14 +9,18 @@ import { Slider } from '@/components/ui/slider'
 import { Loader2, Play, Download, Save, ZoomIn, ZoomOut, Maximize2, Scissors, SkipBack, SkipForward, Split, Undo2, Redo2, Pause, Video, Trash2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
-interface VideoEditorProps {
-  screenshots?: string[]
-  audioUrls?: string[]
-  onExport?: (editData: unknown) => void
-  onAddAudioToTimeline?: (audioUrl: string) => void
+interface TTSClipData {
+  text: string
+  voice: string
 }
 
-export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddAudioToTimeline }: VideoEditorProps) {
+interface VideoEditorProps {
+  screenshots?: string[]
+  onExport?: (editData: unknown) => void
+  onRegisterAddTTSClip?: (fn: (clipData: TTSClipData) => void) => void
+}
+
+export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }: VideoEditorProps) {
 
   const [isLoading, setIsLoading] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -35,8 +39,8 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddA
   const exporterRef = useRef<VideoExporter | null>(null)
   const templateRef = useRef<unknown>(null)
 
-  // Function to add audio to timeline
-  const addAudioToTimeline = useCallback((audioUrl: string) => {
+  // Function to add TTS clip to timeline
+  const addTTSClipToTimeline = useCallback((clipData: TTSClipData) => {
     if (!editRef.current) {
       toast.error('Editor not ready')
       return
@@ -51,7 +55,7 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddA
         editRef.current.addTrack(1, { clips: [] })
       }
 
-      // Add audio clip to track 1 (audio track)
+      // Add TTS clip to track 1 (audio track)
       // Calculate start position based on existing clips
       const audioTrack = tracks[1] || { clips: [] }
       const existingClips = (audioTrack as { clips?: unknown[] }).clips || []
@@ -63,43 +67,30 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddA
         startPosition = (lastClip.start || 0) + (lastClip.length || 3)
       }
 
+      // Add TTS clip with text-to-speech asset type
       editRef.current.addClip(1, {
         asset: {
-          type: 'audio',
-          src: audioUrl,
+          type: 'text-to-speech',
+          text: clipData.text,
+          voice: clipData.voice,
         },
         start: startPosition,
-        length: 'auto', // Auto-detect audio duration
+        length: 'auto', // Auto-detect audio duration during render
       })
 
-      toast.success('Audio added to timeline')
-
-      // Notify parent if callback provided
-      if (onAddAudioToTimeline) {
-        onAddAudioToTimeline(audioUrl)
-      }
+      toast.success('TTS clip added to timeline')
     } catch (error) {
-      console.error('Failed to add audio to timeline:', error)
-      toast.error('Failed to add audio to timeline')
+      console.error('Failed to add TTS clip to timeline:', error)
+      toast.error('Failed to add TTS clip to timeline')
     }
-  }, [onAddAudioToTimeline])
+  }, [])
 
-  // Automatically add new audio URLs to timeline
+  // Register the addTTSClipToTimeline function with parent
   useEffect(() => {
-    if (audioUrls.length > 0 && editRef.current) {
-      // Get the last audio URL (most recently added)
-      const latestAudio = audioUrls[audioUrls.length - 1]
-
-      // Check if this audio is already in the timeline
-      const tracks = editRef.current.getEdit().timeline?.tracks || []
-      const audioTrack = tracks[1] as { clips?: Array<{ asset?: { src?: string } }> } | undefined
-      const existingAudioUrls = audioTrack?.clips?.map(clip => clip.asset?.src) || []
-
-      if (!existingAudioUrls.includes(latestAudio)) {
-        addAudioToTimeline(latestAudio)
-      }
+    if (onRegisterAddTTSClip) {
+      onRegisterAddTTSClip(addTTSClipToTimeline)
     }
-  }, [audioUrls, addAudioToTimeline])
+  }, [onRegisterAddTTSClip, addTTSClipToTimeline])
 
   useEffect(() => {
     let mounted = true
