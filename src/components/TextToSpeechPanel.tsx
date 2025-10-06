@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { Volume2 } from 'lucide-react'
+import { Volume2, Play, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface TTSClipData {
@@ -16,6 +16,17 @@ interface TTSClipData {
 
 interface TextToSpeechPanelProps {
   onAddTTSClip?: (clipData: TTSClipData) => void
+}
+
+// Sample preview text for each language
+const PREVIEW_TEXTS: Record<string, string> = {
+  'en-US': 'Hello, this is a voice preview.',
+  'en-GB': 'Hello, this is a voice preview.',
+  'en-AU': 'Hello, this is a voice preview.',
+  'es-ES': 'Hola, esta es una vista previa de voz.',
+  'fr-FR': 'Bonjour, ceci est un aperçu vocal.',
+  'de-DE': 'Hallo, dies ist eine Sprachvorschau.',
+  'it-IT': 'Ciao, questa è un\'anteprima vocale.',
 }
 
 // Common voices from Shotstack TTS
@@ -50,6 +61,38 @@ const VOICES = [
 export function TextToSpeechPanel({ onAddTTSClip }: TextToSpeechPanelProps) {
   const [text, setText] = useState('')
   const [voice, setVoice] = useState('Joanna')
+  const [isPreviewingVoice, setIsPreviewingVoice] = useState(false)
+  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null)
+
+  const handlePreviewVoice = async () => {
+    const selectedVoice = VOICES.find(v => v.id === voice)
+    const previewText = selectedVoice ? PREVIEW_TEXTS[selectedVoice.language] : PREVIEW_TEXTS['en-US']
+
+    try {
+      setIsPreviewingVoice(true)
+      toast.info('Generating voice preview...')
+
+      const response = await fetch('/api/generate-tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: previewText, voice }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate preview')
+      }
+
+      setPreviewAudioUrl(data.audioUrl)
+      toast.success('Preview ready!')
+    } catch (error) {
+      console.error('Preview failed:', error)
+      toast.error(error instanceof Error ? error.message : 'Preview failed')
+    } finally {
+      setIsPreviewingVoice(false)
+    }
+  }
 
   const handleAddToTimeline = () => {
     if (!text.trim()) {
@@ -82,7 +125,27 @@ export function TextToSpeechPanel({ onAddTTSClip }: TextToSpeechPanelProps) {
       <CardContent className="space-y-4">
         {/* Voice Selection */}
         <div className="space-y-2">
-          <Label htmlFor="voice">Voice</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="voice">Voice</Label>
+            <Button
+              onClick={handlePreviewVoice}
+              disabled={isPreviewingVoice}
+              size="sm"
+              variant="outline"
+            >
+              {isPreviewingVoice ? (
+                <>
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Play className="w-3 h-3 mr-1" />
+                  Preview Voice
+                </>
+              )}
+            </Button>
+          </div>
           <Select value={voice} onValueChange={setVoice}>
             <SelectTrigger id="voice">
               <SelectValue />
@@ -95,6 +158,12 @@ export function TextToSpeechPanel({ onAddTTSClip }: TextToSpeechPanelProps) {
               ))}
             </SelectContent>
           </Select>
+          {previewAudioUrl && (
+            <audio controls className="w-full mt-2" key={previewAudioUrl}>
+              <source src={previewAudioUrl} type="audio/mpeg" />
+              Your browser does not support the audio element.
+            </audio>
+          )}
         </div>
 
         {/* Text Input */}
@@ -124,7 +193,7 @@ export function TextToSpeechPanel({ onAddTTSClip }: TextToSpeechPanelProps) {
         </Button>
 
         <p className="text-xs text-muted-foreground">
-          TTS will be generated during video rendering. No preview available.
+          TTS audio will be generated during video rendering.
         </p>
       </CardContent>
     </Card>

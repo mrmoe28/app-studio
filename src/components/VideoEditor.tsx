@@ -391,6 +391,10 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
+
+    console.log('Drop event triggered', { draggedScreenshot })
+
     if (draggedScreenshot && editRef.current) {
       try {
         // Get the video track (track 0 typically)
@@ -433,6 +437,9 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
+    // Allow drop
+    e.dataTransfer.dropEffect = 'copy'
   }
 
   const handleUndo = () => {
