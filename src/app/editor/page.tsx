@@ -42,57 +42,52 @@ function EditorContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
-      <main className="container mx-auto px-4 py-16">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-2 mb-4">
-              <Video className="w-12 h-12 text-blue-600" />
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+    <div className="h-screen flex flex-col bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
+      {/* Compact Header */}
+      <header className="border-b bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-20">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Video className="w-6 h-6 text-blue-600" />
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Video Editor
               </h1>
             </div>
-            <p className="text-xl text-gray-600 dark:text-gray-300">
-              Professional video editing powered by Shotstack Studio
+            <p className="text-sm text-gray-600 dark:text-gray-300 hidden md:block">
+              Professional editing powered by Shotstack Studio
             </p>
           </div>
+        </div>
+      </header>
 
+      {/* Main Content */}
+      <main className="flex-1 overflow-hidden">
+        <div className="h-full px-2 py-2">
           {/* Upload Section */}
           {screenshots.length === 0 && (
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle>Get Started</CardTitle>
-                <CardDescription>
-                  Upload screenshots to begin editing your video
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ScreenshotUpload onUploadComplete={handleUploadComplete} />
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Editor */}
-          {screenshots.length > 0 && (
-            <>
-              <Card className="mb-8">
+            <div className="h-full flex items-center justify-center">
+              <Card className="w-full max-w-2xl">
                 <CardHeader>
-                  <CardTitle>Screenshots ({screenshots.length})</CardTitle>
+                  <CardTitle>Get Started</CardTitle>
                   <CardDescription>
-                    Add more screenshots or start editing
+                    Upload screenshots to begin editing your video
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScreenshotUpload onUploadComplete={handleUploadComplete} />
                 </CardContent>
               </Card>
+            </div>
+          )}
 
+          {/* Editor - Full Height */}
+          {screenshots.length > 0 && (
+            <div className="h-full">
               <VideoEditor
                 screenshots={screenshots}
                 onExport={handleExport}
               />
-            </>
+            </div>
           )}
         </div>
       </main>
