@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate TTS using Shotstack Create API
-    const response = await fetch(`https://api.shotstack.io/${SHOTSTACK_API_ENV}/create/tts`, {
+    const response = await fetch(`https://api.shotstack.io/create/${SHOTSTACK_API_ENV}/assets`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -48,14 +48,65 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
+    const createData = await response.json()
+    const assetId = createData.data?.id
 
-    // Shotstack returns the audio URL directly
-    return NextResponse.json({
-      success: true,
-      audioUrl: data.data?.url || data.url,
-      data: data.data,
-    })
+    if (!assetId) {
+      console.error('No asset ID returned:', createData)
+      return NextResponse.json(
+        { error: 'Failed to create TTS asset' },
+        { status: 500 }
+      )
+    }
+
+    // Poll for asset status (max 30 seconds, check every 1 second)
+    let attempts = 0
+    const maxAttempts = 30
+
+    while (attempts < maxAttempts) {
+      const statusResponse = await fetch(
+        `https://api.shotstack.io/create/${SHOTSTACK_API_ENV}/assets/${assetId}`,
+        {
+          headers: {
+            'x-api-key': SHOTSTACK_API_KEY,
+          },
+        }
+      )
+
+      if (!statusResponse.ok) {
+        throw new Error('Failed to check asset status')
+      }
+
+      const statusData = await statusResponse.json()
+      const status = statusData.data?.status
+      const audioUrl = statusData.data?.url
+
+      if (status === 'done' && audioUrl) {
+        return NextResponse.json({
+          success: true,
+          audioUrl,
+          assetId,
+          data: statusData.data,
+        })
+      }
+
+      if (status === 'failed') {
+        return NextResponse.json(
+          { error: 'TTS generation failed' },
+          { status: 500 }
+        )
+      }
+
+      // Wait 1 second before next poll
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      attempts++
+    }
+
+    // Timeout
+    return NextResponse.json(
+      { error: 'TTS generation timed out' },
+      { status: 408 }
+    )
   } catch (error) {
     console.error('TTS generation error:', error)
     return NextResponse.json(
