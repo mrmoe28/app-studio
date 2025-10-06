@@ -23,7 +23,9 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddA
   const [timelineZoom, setTimelineZoom] = useState([100])
   const [draggedScreenshot, setDraggedScreenshot] = useState<string | null>(null)
   const [selectedClip, setSelectedClip] = useState<{ trackIndex: number; clipIndex: number } | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
+  const [isBrowserExporting, setIsBrowserExporting] = useState(false)
+  const [isCloudRendering, setIsCloudRendering] = useState(false)
+  const [renderProgress, setRenderProgress] = useState<string>('')
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const editRef = useRef<Edit | null>(null)
@@ -259,10 +261,87 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddA
     }
   }
 
-  const handleExport = () => {
-    if (editRef.current && onExport) {
+  const handleExport = async () => {
+    if (!editRef.current) {
+      toast.error('Editor not ready')
+      return
+    }
+
+    try {
+      setIsCloudRendering(true)
+      setRenderProgress('Preparing video...')
+
       const editData = editRef.current.getEdit()
-      onExport(editData)
+
+      // Submit render job
+      const response = await fetch('/api/render-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          timeline: editData.timeline,
+          output: editData.output || {
+            format: 'mp4',
+            resolution: 'hd',
+          },
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit render')
+      }
+
+      const renderId = data.renderId
+      toast.success('Render job submitted!')
+      setRenderProgress('Rendering video...')
+
+      // Poll for status
+      const pollStatus = async () => {
+        const statusResponse = await fetch(`/api/render-status/${renderId}`)
+        const statusData = await statusResponse.json()
+
+        if (statusData.status === 'done' && statusData.url) {
+          setRenderProgress('Complete!')
+          toast.success('Video rendered successfully!')
+
+          // Open video in new tab
+          window.open(statusData.url, '_blank')
+
+          // Call parent export handler if provided
+          if (onExport) {
+            onExport(editData)
+          }
+
+          setIsCloudRendering(false)
+          setRenderProgress('')
+          return
+        }
+
+        if (statusData.status === 'failed') {
+          throw new Error('Render failed')
+        }
+
+        // Update progress
+        if (statusData.status === 'rendering') {
+          setRenderProgress('Rendering video... (this may take 10-30 seconds)')
+        } else if (statusData.status === 'queued') {
+          setRenderProgress('Queued for rendering...')
+        }
+
+        // Continue polling
+        setTimeout(pollStatus, 2000)
+      }
+
+      // Start polling after 2 seconds
+      setTimeout(pollStatus, 2000)
+    } catch (error) {
+      console.error('Render failed:', error)
+      toast.error(error instanceof Error ? error.message : 'Render failed')
+      setIsCloudRendering(false)
+      setRenderProgress('')
     }
   }
 
@@ -362,7 +441,7 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddA
     }
 
     try {
-      setIsExporting(true)
+      setIsBrowserExporting(true)
       toast.info('Exporting video... This may take a few minutes')
 
       const filename = `promo-video-${Date.now()}.mp4`
@@ -373,7 +452,7 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddA
       console.error('Export failed:', error)
       toast.error('Failed to export video')
     } finally {
-      setIsExporting(false)
+      setIsBrowserExporting(false)
     }
   }
 
@@ -538,26 +617,35 @@ export function VideoEditor({ screenshots = [], audioUrls = [], onExport, onAddA
               </Button>
               <Button
                 onClick={handleExportVideo}
-                disabled={isLoading || isExporting}
+                disabled={isLoading || isBrowserExporting || isCloudRendering}
                 size="sm"
                 variant="outline"
                 title="Export video to MP4 (browser)"
               >
-                {isExporting ? (
+                {isBrowserExporting ? (
                   <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                 ) : (
                   <Video className="w-4 h-4 mr-1" />
                 )}
-                {isExporting ? 'Exporting...' : 'Export MP4'}
+                {isBrowserExporting ? 'Exporting...' : 'Export MP4'}
               </Button>
               <Button
                 onClick={handleExport}
-                disabled={isLoading}
+                disabled={isLoading || isBrowserExporting || isCloudRendering}
                 size="sm"
-                title="Export to Shotstack API"
+                title="Cloud render with Shotstack API (best quality)"
               >
-                <Download className="w-4 h-4 mr-1" />
-                Render API
+                {isCloudRendering ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                    {renderProgress || 'Rendering...'}
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-1" />
+                    Cloud Render
+                  </>
+                )}
               </Button>
             </div>
           </div>
