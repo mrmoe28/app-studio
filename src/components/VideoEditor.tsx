@@ -571,7 +571,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
     }
   }
 
-  const handleDeleteClip = () => {
+  const handleDeleteClip = useCallback(() => {
     if (editRef.current && selectedClip) {
       editRef.current.deleteClip(selectedClip.trackIndex, selectedClip.clipIndex)
       setSelectedClip(null)
@@ -579,7 +579,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
     } else {
       toast.error('No clip selected. Click a clip to select it.')
     }
-  }
+  }, [selectedClip])
 
   const handleSplitClip = () => {
     if (!editRef.current || !selectedClip) {
@@ -702,6 +702,34 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
       toast.error('Failed to replace clip')
     }
   }
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!selectedClip || event.repeat) {
+        return
+      }
+
+      const target = event.target as HTMLElement | null
+      const isEditable = !!target && (
+        target.isContentEditable ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.getAttribute('role') === 'textbox'
+      )
+
+      if (isEditable) {
+        return
+      }
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault()
+        handleDeleteClip()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleDeleteClip, selectedClip])
 
   const handleAddTrack = () => {
     if (editRef.current) {
@@ -879,6 +907,16 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
                   title="Apply duration"
                 >
                   Apply
+                </Button>
+                <Button
+                  onClick={handleDeleteClip}
+                  disabled={isLoading}
+                  size="sm"
+                  variant="destructive"
+                  title="Delete selected clip"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
                 </Button>
               </div>
             )}
