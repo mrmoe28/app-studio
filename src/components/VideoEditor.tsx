@@ -502,7 +502,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
 
   return (
-    <div className="flex flex-col h-full space-y-2">
+    <div className="flex flex-col space-y-2">
       {/* Enhanced Toolbar */}
       <Card className="sticky top-0 z-10">
         <CardContent className="p-3">
@@ -695,7 +695,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
       </Card>
 
       {/* Main Editor Area */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-2 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-2">
         {/* Screenshots Panel (Click to add) */}
         <Card className="lg:col-span-1 overflow-auto">
           <CardHeader className="p-3">
@@ -727,12 +727,12 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
         </Card>
 
         {/* Canvas & Timeline */}
-        <div className="lg:col-span-3 flex flex-col gap-2 min-h-0">
+        <div className="lg:col-span-3 flex flex-col gap-2">
           {/* Video Canvas */}
-          <Card className="flex-1">
-            <CardContent className="p-3 h-full">
+          <Card>
+            <CardContent className="p-3">
               {isLoading && (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center" style={{ minHeight: '400px' }}>
                   <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 </div>
               )}
@@ -740,21 +740,21 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
               <div
                 ref={canvasContainerRef}
                 data-shotstack-studio
-                className="w-full h-full bg-black rounded-lg overflow-hidden"
-                style={{ minHeight: '300px' }}
+                className="w-full bg-black rounded-lg overflow-hidden"
+                style={{ minHeight: '400px', maxHeight: '600px', aspectRatio: '16/9' }}
               />
             </CardContent>
           </Card>
 
           {/* Timeline */}
-          <Card className="h-64">
-            <CardContent className="p-3 h-full">
+          <Card>
+            <CardContent className="p-3">
               {/* Timeline container - Shotstack Timeline.load() will render here */}
               <div
                 ref={timelineContainerRef}
                 data-shotstack-timeline
-                className="w-full h-full bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden"
-                style={{ transform: `scale(${timelineZoom[0] / 100})`, transformOrigin: 'top left' }}
+                className="w-full bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden"
+                style={{ height: '300px', transform: `scale(${timelineZoom[0] / 100})`, transformOrigin: 'top left' }}
               />
             </CardContent>
           </Card>

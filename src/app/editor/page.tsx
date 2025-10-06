@@ -69,8 +69,8 @@ function EditorContent() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
-        <div className="h-full px-2 py-2">
+      <main className="flex-1 overflow-y-auto">
+        <div className="px-2 py-2">
           <Breadcrumbs />
           {/* Upload Section */}
           {screenshots.length === 0 && (
