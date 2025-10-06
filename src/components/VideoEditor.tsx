@@ -25,7 +25,6 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
   const [isLoading, setIsLoading] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
   const [timelineZoom, setTimelineZoom] = useState([100])
-  const [draggedScreenshot, setDraggedScreenshot] = useState<string | null>(null)
   const [selectedClip, setSelectedClip] = useState<{ trackIndex: number; clipIndex: number } | null>(null)
   const [isBrowserExporting, setIsBrowserExporting] = useState(false)
   const [isCloudRendering, setIsCloudRendering] = useState(false)
@@ -381,65 +380,47 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
     }
   }
 
-  const handleDragStart = (screenshot: string) => {
-    setDraggedScreenshot(screenshot)
-  }
-
-  const handleDragEnd = () => {
-    setDraggedScreenshot(null)
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    console.log('Drop event triggered', { draggedScreenshot })
-
-    if (draggedScreenshot && editRef.current) {
-      try {
-        // Get the video track (track 0 typically)
-        const tracks = editRef.current.getEdit().timeline?.tracks || []
-
-        // If no video track exists, create one
-        if (tracks.length < 1) {
-          editRef.current.addTrack(0, { clips: [] })
-        }
-
-        // Calculate start position based on existing clips
-        const videoTrack = tracks[0] || { clips: [] }
-        const existingClips = (videoTrack as { clips?: unknown[] }).clips || []
-
-        // Start after the last clip, or at 0 if no clips
-        let startPosition = 0
-        if (existingClips.length > 0) {
-          const lastClip = existingClips[existingClips.length - 1] as { start?: number; length?: number }
-          startPosition = (lastClip.start || 0) + (lastClip.length || 3)
-        }
-
-        // Add image clip to track 0 (video track)
-        editRef.current.addClip(0, {
-          asset: {
-            type: 'image',
-            src: draggedScreenshot,
-          },
-          start: startPosition,
-          length: 3, // 3 seconds per screenshot
-        })
-
-        toast.success('Screenshot added to timeline')
-        setDraggedScreenshot(null)
-      } catch (error) {
-        console.error('Failed to add screenshot to timeline:', error)
-        toast.error('Failed to add screenshot')
-      }
+  const handleAddScreenshotToTimeline = (screenshot: string) => {
+    if (!editRef.current) {
+      toast.error('Editor not ready')
+      return
     }
-  }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    // Allow drop
-    e.dataTransfer.dropEffect = 'copy'
+    try {
+      // Get the video track (track 0 typically)
+      const tracks = editRef.current.getEdit().timeline?.tracks || []
+
+      // If no video track exists, create one
+      if (tracks.length < 1) {
+        editRef.current.addTrack(0, { clips: [] })
+      }
+
+      // Calculate start position based on existing clips
+      const videoTrack = tracks[0] || { clips: [] }
+      const existingClips = (videoTrack as { clips?: unknown[] }).clips || []
+
+      // Start after the last clip, or at 0 if no clips
+      let startPosition = 0
+      if (existingClips.length > 0) {
+        const lastClip = existingClips[existingClips.length - 1] as { start?: number; length?: number }
+        startPosition = (lastClip.start || 0) + (lastClip.length || 3)
+      }
+
+      // Add image clip to track 0 (video track)
+      editRef.current.addClip(0, {
+        asset: {
+          type: 'image',
+          src: screenshot,
+        },
+        start: startPosition,
+        length: 3, // 3 seconds per screenshot
+      })
+
+      toast.success('Screenshot added to timeline')
+    } catch (error) {
+      console.error('Failed to add screenshot to timeline:', error)
+      toast.error('Failed to add screenshot')
+    }
   }
 
   const handleUndo = () => {
@@ -694,16 +675,14 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
         <Card className="lg:col-span-1 overflow-auto">
           <CardHeader className="p-3">
             <CardTitle className="text-sm">Screenshots</CardTitle>
-            <CardDescription className="text-xs">Drag to timeline</CardDescription>
+            <CardDescription className="text-xs">Click to add to timeline</CardDescription>
           </CardHeader>
           <CardContent className="p-3 space-y-2">
             {screenshots.map((screenshot, index) => (
               <div
                 key={index}
-                draggable
-                onDragStart={() => handleDragStart(screenshot)}
-                onDragEnd={handleDragEnd}
-                className="relative group cursor-move hover:ring-2 hover:ring-blue-500 rounded-lg transition-all"
+                onClick={() => handleAddScreenshotToTimeline(screenshot)}
+                className="relative group cursor-pointer hover:ring-2 hover:ring-blue-500 rounded-lg transition-all"
               >
                 <Image
                   src={screenshot}
@@ -713,8 +692,9 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
                   className="w-full h-auto rounded-lg"
                   unoptimized
                 />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                  <span className="text-white text-xs font-medium">Drag to add</span>
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center gap-1">
+                  <Plus className="w-6 h-6 text-white" />
+                  <span className="text-white text-xs font-medium">Click to add to timeline</span>
                 </div>
               </div>
             ))}
@@ -742,26 +722,13 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
           {/* Timeline with Drop Zone */}
           <Card className="h-64">
-            <CardContent
-              className="p-3 h-full"
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-            >
+            <CardContent className="p-3 h-full">
               {/* Timeline container - Shotstack will render here */}
               <div
                 data-shotstack-timeline
-                className={`w-full h-full bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden transition-all ${
-                  draggedScreenshot ? 'ring-2 ring-blue-500 ring-offset-2' : ''
-                }`}
+                className="w-full h-full bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden"
                 style={{ transform: `scale(${timelineZoom[0] / 100})`, transformOrigin: 'top left' }}
               />
-              {draggedScreenshot && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="bg-blue-500/20 border-2 border-blue-500 border-dashed rounded-lg p-4">
-                    <span className="text-blue-600 font-medium">Drop here to add to timeline</span>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
