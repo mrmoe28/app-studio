@@ -31,12 +31,17 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
   const [renderProgress, setRenderProgress] = useState<string>('')
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+
   const editRef = useRef<Edit | null>(null)
   const canvasRef = useRef<Canvas | null>(null)
   const timelineRef = useRef<Timeline | null>(null)
   const controlsRef = useRef<Controls | null>(null)
   const exporterRef = useRef<VideoExporter | null>(null)
   const templateRef = useRef<unknown>(null)
+
+  // DOM container refs - CRITICAL for proper mounting
+  const canvasContainerRef = useRef<HTMLDivElement>(null)
+  const timelineContainerRef = useRef<HTMLDivElement>(null)
 
   // Function to add TTS clip to timeline
   const addTTSClipToTimeline = useCallback((clipData: TTSClipData) => {
@@ -99,6 +104,14 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
     async function initializeEditor() {
       try {
+        // Wait for DOM containers to be available
+        if (!canvasContainerRef.current || !timelineContainerRef.current) {
+          console.error('Canvas or timeline container not found')
+          return
+        }
+
+        console.log('Initializing Shotstack Studio...')
+
         // Load template
         const response = await fetch(
           'https://shotstack-assets.s3.amazonaws.com/templates/hello-world/hello.json'
@@ -108,26 +121,35 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
         if (!mounted) return
 
+        console.log('Template loaded:', template)
+
         // Initialize the edit
         const edit = new Edit(template.output.size, template.timeline.background)
         await edit.load()
         editRef.current = edit
 
-        // Create canvas
+        console.log('Edit initialized')
+
+        // Create canvas - it will automatically render to [data-shotstack-studio]
         const canvas = new Canvas(template.output.size, edit)
         await canvas.load()
         canvasRef.current = canvas
+
+        console.log('Canvas loaded and mounted')
 
         // If screenshots provided, replace template images before loading
         let finalTemplate = template
         if (screenshots.length > 0) {
           finalTemplate = replaceImagesInTemplate(template, screenshots)
+          console.log('Template updated with screenshots')
         }
 
         // Load template into editor
         await edit.loadEdit(finalTemplate)
 
-        // Initialize timeline with dark theme
+        console.log('Template loaded into editor')
+
+        // Initialize timeline with dark theme - it will automatically render to [data-shotstack-timeline]
         const darkTheme = {
           timeline: {
             background: '#1e1e1e',
@@ -177,48 +199,60 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
         await timeline.load()
         timelineRef.current = timeline
 
+        console.log('Timeline loaded and mounted')
+
         // Add keyboard controls
         const controls = new Controls(edit)
         await controls.load()
         controlsRef.current = controls
 
+        console.log('Controls loaded')
+
         // Initialize VideoExporter
         const exporter = new VideoExporter(edit, canvas)
         exporterRef.current = exporter
 
+        console.log('Exporter initialized')
+
         // Set up event listeners
         edit.events.on('clip:selected', (data: { clip: unknown; trackIndex: number; clipIndex: number }) => {
           setSelectedClip({ trackIndex: data.trackIndex, clipIndex: data.clipIndex })
-          toast.info(`Clip selected: Track ${data.trackIndex}, Clip ${data.clipIndex}`)
+          console.log(`Clip selected: Track ${data.trackIndex}, Clip ${data.clipIndex}`)
         })
 
         edit.events.on('clip:updated', () => {
-          toast.success('Clip updated')
+          console.log('Clip updated')
         })
 
         edit.events.on('edit:undo', () => {
-          toast.info('Undo')
-          setCanUndo(false) // Update based on edit history
+          console.log('Undo')
+          setCanUndo(false)
           setCanRedo(true)
         })
 
         edit.events.on('edit:redo', () => {
-          toast.info('Redo')
+          console.log('Redo')
           setCanRedo(false)
           setCanUndo(true)
         })
 
         setIsLoading(false)
+        console.log('Editor initialization complete!')
       } catch (error) {
         console.error('Failed to initialize editor:', error)
+        toast.error('Failed to initialize editor')
         setIsLoading(false)
       }
     }
 
-    initializeEditor()
+    // Small delay to ensure DOM is ready
+    const timer = setTimeout(() => {
+      initializeEditor()
+    }, 100)
 
     return () => {
       mounted = false
+      clearTimeout(timer)
       // Cleanup if needed
     }
   }, [screenshots])
@@ -300,41 +334,26 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
           setRenderProgress('Complete!')
           toast.success('Video rendered successfully!')
 
-          // Open video in new tab
+          // Auto-download
           window.open(statusData.url, '_blank')
 
-          // Call parent export handler if provided
-          if (onExport) {
-            onExport(editData)
-          }
-
           setIsCloudRendering(false)
-          setRenderProgress('')
           return
         }
 
         if (statusData.status === 'failed') {
-          throw new Error('Render failed')
-        }
-
-        // Update progress
-        if (statusData.status === 'rendering') {
-          setRenderProgress('Rendering video... (this may take 10-30 seconds)')
-        } else if (statusData.status === 'queued') {
-          setRenderProgress('Queued for rendering...')
+          throw new Error(statusData.error || 'Render failed')
         }
 
         // Continue polling
         setTimeout(pollStatus, 2000)
       }
 
-      // Start polling after 2 seconds
-      setTimeout(pollStatus, 2000)
+      pollStatus()
     } catch (error) {
-      console.error('Render failed:', error)
-      toast.error(error instanceof Error ? error.message : 'Render failed')
+      console.error('Export failed:', error)
+      toast.error(error instanceof Error ? error.message : 'Export failed')
       setIsCloudRendering(false)
-      setRenderProgress('')
     }
   }
 
@@ -387,17 +406,22 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
     }
 
     try {
+      console.log('Adding screenshot to timeline:', screenshot)
+
       // Get the video track (track 0 typically)
       const tracks = editRef.current.getEdit().timeline?.tracks || []
+      console.log('Current tracks:', tracks.length)
 
       // If no video track exists, create one
       if (tracks.length < 1) {
+        console.log('Creating video track...')
         editRef.current.addTrack(0, { clips: [] })
       }
 
       // Calculate start position based on existing clips
       const videoTrack = tracks[0] || { clips: [] }
       const existingClips = (videoTrack as { clips?: unknown[] }).clips || []
+      console.log('Existing clips:', existingClips.length)
 
       // Start after the last clip, or at 0 if no clips
       let startPosition = 0
@@ -405,6 +429,8 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
         const lastClip = existingClips[existingClips.length - 1] as { start?: number; length?: number }
         startPosition = (lastClip.start || 0) + (lastClip.length || 3)
       }
+
+      console.log('Adding clip at position:', startPosition)
 
       // Add image clip to track 0 (video track)
       editRef.current.addClip(0, {
@@ -417,6 +443,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
       })
 
       toast.success('Screenshot added to timeline')
+      console.log('Screenshot successfully added')
     } catch (error) {
       console.error('Failed to add screenshot to timeline:', error)
       toast.error('Failed to add screenshot')
@@ -487,7 +514,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
                 disabled={isLoading}
                 size="sm"
                 variant="ghost"
-                title="Skip backward 1 second"
+                title="Skip backward"
               >
                 <SkipBack className="w-4 h-4" />
               </Button>
@@ -495,53 +522,49 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
                 onClick={handlePlay}
                 disabled={isLoading}
                 size="sm"
-                variant={isPlaying ? "default" : "ghost"}
+                variant="ghost"
+                title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
               >
-                {isPlaying ? (
-                  <Pause className="w-4 h-4" />
-                ) : (
-                  <Play className="w-4 h-4" />
-                )}
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
               </Button>
               <Button
                 onClick={handleSkipForward}
                 disabled={isLoading}
                 size="sm"
                 variant="ghost"
-                title="Skip forward 1 second"
+                title="Skip forward"
               >
                 <SkipForward className="w-4 h-4" />
               </Button>
             </div>
 
-            {/* Timeline Zoom Controls */}
-            <div className="flex items-center gap-2 border-r pr-2">
+            {/* Zoom Controls */}
+            <div className="flex items-center gap-1 border-r pr-2">
               <Button
                 onClick={handleZoomOut}
                 disabled={isLoading}
                 size="sm"
                 variant="ghost"
-                title="Zoom out"
+                title="Zoom out timeline"
               >
                 <ZoomOut className="w-4 h-4" />
               </Button>
-              <div className="w-24">
+              <div className="w-20 px-2">
                 <Slider
                   value={timelineZoom}
                   onValueChange={setTimelineZoom}
                   min={50}
                   max={200}
                   step={25}
-                  className="cursor-pointer"
+                  disabled={isLoading}
                 />
               </div>
-              <span className="text-xs text-muted-foreground w-12">{timelineZoom[0]}%</span>
               <Button
                 onClick={handleZoomIn}
                 disabled={isLoading}
                 size="sm"
                 variant="ghost"
-                title="Zoom in"
+                title="Zoom in timeline"
               >
                 <ZoomIn className="w-4 h-4" />
               </Button>
@@ -556,9 +579,10 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
               </Button>
             </div>
 
-            {/* Editing Tools */}
+            {/* Edit Tools */}
             <div className="flex items-center gap-1 border-r pr-2">
               <Button
+                onClick={() => toast.info('Split not yet implemented')}
                 disabled={isLoading}
                 size="sm"
                 variant="ghost"
@@ -567,6 +591,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
                 <Split className="w-4 h-4" />
               </Button>
               <Button
+                onClick={() => toast.info('Trim not yet implemented')}
                 disabled={isLoading}
                 size="sm"
                 variant="ghost"
@@ -671,7 +696,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
       {/* Main Editor Area */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-2 min-h-0">
-        {/* Screenshots Panel (Draggable) */}
+        {/* Screenshots Panel (Click to add) */}
         <Card className="lg:col-span-1 overflow-auto">
           <CardHeader className="p-3">
             <CardTitle className="text-sm">Screenshots</CardTitle>
@@ -711,8 +736,9 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
                   <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 </div>
               )}
-              {/* Canvas container - Shotstack will render here */}
+              {/* Canvas container - Shotstack Canvas.load() will render here */}
               <div
+                ref={canvasContainerRef}
                 data-shotstack-studio
                 className="w-full h-full bg-black rounded-lg overflow-hidden"
                 style={{ minHeight: '300px' }}
@@ -720,11 +746,12 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
             </CardContent>
           </Card>
 
-          {/* Timeline with Drop Zone */}
+          {/* Timeline */}
           <Card className="h-64">
             <CardContent className="p-3 h-full">
-              {/* Timeline container - Shotstack will render here */}
+              {/* Timeline container - Shotstack Timeline.load() will render here */}
               <div
+                ref={timelineContainerRef}
                 data-shotstack-timeline
                 className="w-full h-full bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden"
                 style={{ transform: `scale(${timelineZoom[0] / 100})`, transformOrigin: 'top left' }}
