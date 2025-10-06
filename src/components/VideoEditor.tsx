@@ -70,6 +70,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
       // Add TTS clip with text-to-speech asset type
       // Note: TypeScript types from Shotstack Studio don't include 'text-to-speech'
       // but it's supported by Shotstack Render API, so we use type assertion
+      // Estimate 3 seconds per clip - Shotstack will calculate actual duration during render
       editRef.current.addClip(1, {
         asset: {
           type: 'text-to-speech' as 'audio',
@@ -77,7 +78,7 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
           voice: clipData.voice,
         } as unknown as { type: 'audio'; src: string },
         start: startPosition,
-        length: 'auto', // Auto-detect audio duration during render
+        length: 3, // Placeholder length - actual duration calculated during render
       })
 
       toast.success('TTS clip added to timeline')
