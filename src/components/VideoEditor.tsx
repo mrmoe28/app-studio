@@ -367,15 +367,17 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
   const handleSkipBack = () => {
     if (editRef.current) {
-      const currentTime = editRef.current.getTime()
-      editRef.current.setTime(Math.max(0, currentTime - 1))
+      // Note: getTime/setTime not available in current Shotstack Studio types
+      // TODO: Implement playhead control when API is available
+      toast.info('Playhead control not yet implemented')
     }
   }
 
   const handleSkipForward = () => {
     if (editRef.current) {
-      const currentTime = editRef.current.getTime()
-      editRef.current.setTime(currentTime + 1)
+      // Note: getTime/setTime not available in current Shotstack Studio types
+      // TODO: Implement playhead control when API is available
+      toast.info('Playhead control not yet implemented')
     }
   }
 
