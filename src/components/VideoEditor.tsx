@@ -391,10 +391,43 @@ export function VideoEditor({ screenshots = [], onExport, onRegisterAddTTSClip }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    if (draggedScreenshot && templateRef.current) {
-      // Add screenshot to timeline at drop position
-      console.log('Dropped screenshot:', draggedScreenshot)
-      // TODO: Implement adding clip to timeline at specific position
+    if (draggedScreenshot && editRef.current) {
+      try {
+        // Get the video track (track 0 typically)
+        const tracks = editRef.current.getEdit().timeline?.tracks || []
+
+        // If no video track exists, create one
+        if (tracks.length < 1) {
+          editRef.current.addTrack(0, { clips: [] })
+        }
+
+        // Calculate start position based on existing clips
+        const videoTrack = tracks[0] || { clips: [] }
+        const existingClips = (videoTrack as { clips?: unknown[] }).clips || []
+
+        // Start after the last clip, or at 0 if no clips
+        let startPosition = 0
+        if (existingClips.length > 0) {
+          const lastClip = existingClips[existingClips.length - 1] as { start?: number; length?: number }
+          startPosition = (lastClip.start || 0) + (lastClip.length || 3)
+        }
+
+        // Add image clip to track 0 (video track)
+        editRef.current.addClip(0, {
+          asset: {
+            type: 'image',
+            src: draggedScreenshot,
+          },
+          start: startPosition,
+          length: 3, // 3 seconds per screenshot
+        })
+
+        toast.success('Screenshot added to timeline')
+        setDraggedScreenshot(null)
+      } catch (error) {
+        console.error('Failed to add screenshot to timeline:', error)
+        toast.error('Failed to add screenshot')
+      }
     }
   }
 
