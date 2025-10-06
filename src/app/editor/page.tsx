@@ -4,8 +4,10 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { VideoEditor } from '@/components/VideoEditor'
 import { ScreenshotUpload } from '@/components/ScreenshotUpload'
+import { TextToSpeechPanel } from '@/components/TextToSpeechPanel'
 import { Video, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic'
@@ -13,6 +15,7 @@ export const dynamic = 'force-dynamic'
 function EditorContent() {
   const searchParams = useSearchParams()
   const [screenshots, setScreenshots] = useState<string[]>([])
+  const [audioUrls, setAudioUrls] = useState<string[]>([])
 
   useEffect(() => {
     // Get screenshots from URL params (if passed from main page)
@@ -29,6 +32,10 @@ function EditorContent() {
 
   const handleUploadComplete = (uploadedUrls: string[]) => {
     setScreenshots(prev => [...prev, ...uploadedUrls])
+  }
+
+  const handleAudioGenerated = (audioUrl: string) => {
+    setAudioUrls(prev => [...prev, audioUrl])
   }
 
   const handleExport = async (editData: unknown) => {
@@ -80,13 +87,43 @@ function EditorContent() {
             </div>
           )}
 
-          {/* Editor - Full Height */}
+          {/* Editor - Full Height with TTS Panel */}
           {screenshots.length > 0 && (
-            <div className="h-full">
-              <VideoEditor
-                screenshots={screenshots}
-                onExport={handleExport}
-              />
+            <div className="h-full grid grid-cols-1 xl:grid-cols-4 gap-2">
+              {/* Main Editor - Takes 3/4 width on XL screens */}
+              <div className="xl:col-span-3 h-full">
+                <VideoEditor
+                  screenshots={screenshots}
+                  audioUrls={audioUrls}
+                  onExport={handleExport}
+                />
+              </div>
+
+              {/* TTS Panel - Takes 1/4 width on XL screens */}
+              <div className="xl:col-span-1 overflow-auto">
+                <Tabs defaultValue="tts" className="h-full">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="tts" className="flex-1">Voice</TabsTrigger>
+                    <TabsTrigger value="upload" className="flex-1">Upload</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="tts" className="mt-2">
+                    <TextToSpeechPanel onAudioGenerated={handleAudioGenerated} />
+                  </TabsContent>
+                  <TabsContent value="upload" className="mt-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Add Screenshots</CardTitle>
+                        <CardDescription>
+                          Upload more screenshots ({screenshots.length} total)
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ScreenshotUpload onUploadComplete={handleUploadComplete} />
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              </div>
             </div>
           )}
         </div>

@@ -11,10 +11,14 @@ import { toast } from 'sonner'
 
 interface VideoEditorProps {
   screenshots?: string[]
+  audioUrls?: string[]
   onExport?: (editData: unknown) => void
 }
 
-export function VideoEditor({ screenshots = [], onExport }: VideoEditorProps) {
+export function VideoEditor({ screenshots = [], audioUrls = [], onExport }: VideoEditorProps) {
+  // TODO: Use audioUrls to add audio clips to timeline automatically
+  console.log('Audio URLs available:', audioUrls)
+
   const [isLoading, setIsLoading] = useState(true)
   const [isPlaying, setIsPlaying] = useState(false)
   const [timelineZoom, setTimelineZoom] = useState([100])
