@@ -16,6 +16,7 @@ import { AudioControls, type AudioSettings } from '@/components/AudioControls'
 import { ScreenshotGallery } from '@/components/ScreenshotGallery'
 import { ScreenshotUpload } from '@/components/ScreenshotUpload'
 import { Slider } from '@/components/ui/slider'
+import { Breadcrumbs } from '@/components/Breadcrumbs'
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
@@ -344,6 +345,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
       <main className="container mx-auto px-4 py-16">
         <div className="max-w-4xl mx-auto">
+          <Breadcrumbs />
           {/* Header */}
           <div className="text-center mb-12">
             <div className="flex items-center justify-center gap-2 mb-4">

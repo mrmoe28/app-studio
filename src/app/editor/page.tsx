@@ -8,6 +8,7 @@ import { TextToSpeechPanel } from '@/components/TextToSpeechPanel'
 import { Video, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Breadcrumbs } from '@/components/Breadcrumbs'
 
 // Force dynamic rendering for this page
 export const dynamic = 'force-dynamic'
@@ -70,6 +71,7 @@ function EditorContent() {
       {/* Main Content */}
       <main className="flex-1 overflow-hidden">
         <div className="h-full px-2 py-2">
+          <Breadcrumbs />
           {/* Upload Section */}
           {screenshots.length === 0 && (
             <div className="h-full flex items-center justify-center">
